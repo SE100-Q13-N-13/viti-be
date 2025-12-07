@@ -4,9 +4,8 @@ import com.example.viti_be.dto.request.CreateEmployeeRequest;
 import com.example.viti_be.dto.request.LoginRequest;
 import com.example.viti_be.dto.request.SignupRequest;
 import com.example.viti_be.dto.response.JwtResponse;
-import com.example.viti_be.model.Role;
-import com.example.viti_be.model.User;
-import com.example.viti_be.model.UserRole;
+import com.example.viti_be.model.*;
+import com.example.viti_be.repository.CustomerRepository;
 import com.example.viti_be.repository.RoleRepository;
 import com.example.viti_be.repository.UserRepository;
 import com.example.viti_be.security.jwt.JwtUtils;
@@ -24,7 +23,9 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -50,6 +51,9 @@ public class AuthService {
 
     @Autowired
     EmailService emailService;
+
+    @Autowired
+    CustomerRepository customerRepository;
 
     public JwtResponse authenticateUser(LoginRequest loginRequest) {
         // 1. Xác thực username/password
@@ -152,6 +156,7 @@ public class AuthService {
         userRepository.save(user);
     }
 
+    @Transactional
     public void registerUser(SignupRequest signUpRequest) {
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             throw new RuntimeException("Error: Username is already taken!");
@@ -161,6 +166,7 @@ public class AuthService {
             throw new RuntimeException("Error: Email is already in use!");
         }
 
+        // Create User
         User user = new User();
         user.setUsername(signUpRequest.getUsername());
         user.setEmail(signUpRequest.getEmail());
@@ -169,15 +175,33 @@ public class AuthService {
         user.setPhone(signUpRequest.getPhone());
         user.setStatus("PENDING");
 
+        // Assign ROLE_CUSTOMER
+        Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
+                .orElseThrow(() -> new RuntimeException("Error: Role ROLE_CUSTOMER not found"));
+        
+        UserRole userRole = new UserRole();
+        userRole.setUser(user);
+        userRole.setRole(customerRole);
+        user.getUserRoles().add(userRole);
+
         String otp = String.valueOf((int) (Math.random() * 900000) + 100000);
         user.setVerificationCode(otp);
         user.setVerificationExpiration(LocalDateTime.now().plusMinutes(15));
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Create Customer record
+        Customer customer = new Customer();
+        customer.setFullName(signUpRequest.getFullName());
+        customer.setPhone(signUpRequest.getPhone());
+        customer.setEmail(signUpRequest.getEmail());
+        customer.setTotalPurchase(BigDecimal.ZERO);
+        customerRepository.save(customer);
 
         new Thread(() -> emailService.sendOtpEmail(user.getEmail(), otp)).start();
     }
 
+    @Transactional
     public void verifyUser(String email, String otp) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -198,6 +222,7 @@ public class AuthService {
     @Value("${viti.app.googleClientId}")
     String googleClientId;
 
+    @Transactional
     public JwtResponse loginWithGoogle(String idTokenString) throws Exception {
         GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
                 .setAudience(Collections.singletonList(googleClientId))
@@ -224,7 +249,17 @@ public class AuthService {
                     ur.setRole(role);
                     newUser.getUserRoles().add(ur);
                 }
-                return userRepository.save(newUser);
+                
+                User savedUser = userRepository.save(newUser);
+                
+                // Create Customer record for Google login
+                Customer customer = new Customer();
+                customer.setFullName(name);
+                customer.setEmail(email);
+                customer.setTotalPurchase(BigDecimal.ZERO);
+                customerRepository.save(customer);
+                
+                return savedUser;
             });
 
             Authentication authentication = new UsernamePasswordAuthenticationToken(
