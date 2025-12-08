@@ -17,4 +17,12 @@ public class EmailService {
         message.setText("Your verification code is: " + otp);
         mailSender.send(message);
     }
+
+    public void sendEmail(String to, String subject, String content) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(content);
+        mailSender.send(message);
+    }
 }

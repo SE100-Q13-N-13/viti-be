@@ -3,6 +3,7 @@ package com.example.viti_be.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -29,6 +30,8 @@ public class User extends BaseEntity {
 
     private String phone;
 
+    private String avatar;
+
     @Column(name = "status")
     private String status; // ACTIVE, SUSPENDED...
 
@@ -37,6 +40,15 @@ public class User extends BaseEntity {
 
     @Column(name = "verification_expiration")
     private LocalDateTime verificationExpiration;
+
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = false;
+
+    @Column(name = "verification_token")
+    private String verificationToken;
+
+    @Column(name = "token_expiry_date")
+    private Instant tokenExpiryDate;
 
     @Column(name = "is_first_login")
     private Boolean isFirstLogin = false;
