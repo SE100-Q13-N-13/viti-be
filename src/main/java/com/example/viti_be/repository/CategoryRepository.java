@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface CategoryRepository extends JpaRepository<Category, UUID> {
     boolean existsByName(String name);
-    List<Category> findByParent(UUID categoryId);
+    List<Category> findByParentId(UUID parentId);
     List<Category> findAllByIsDeletedFalse();
     Optional<Category> findByIdAndIsDeletedFalse(UUID id);
 }
