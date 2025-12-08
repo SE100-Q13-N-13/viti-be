@@ -5,9 +5,9 @@ import com.example.viti_be.model.User;
 import com.example.viti_be.repository.RefreshTokenRepository;
 import com.example.viti_be.repository.UserRepository;
 import com.example.viti_be.service.RefreshTokenService;
-import com.google.api.client.util.Value;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;

@@ -19,7 +19,6 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -253,32 +252,5 @@ public class AuthServiceImpl implements AuthService {
         } else {
             throw new RuntimeException("Invalid ID token.");
         }
-    }
-
-    @Override
-    public void sendVerificationEmail(User user) {
-        String verificationToken = jwtUtils.generateTokenFromEmail(user.getEmail(), 24 * 60 * 60 * 1000);
-        String verificationLink = "http://localhost:8080/api/auth/verify-account?token=" + verificationToken;
-        String subject = "Viti Shop - Verify your account";
-        String content = "Please click the link below to verify your account: " + verificationLink;
-        emailService.sendEmail(user.getEmail(), subject, content);
-    }
-
-    @Override
-    @Transactional
-    public boolean verifyAccount(String token) {
-        if (!jwtUtils.validateJwtToken(token)) {
-            return false;
-        }
-        String email = jwtUtils.getEmailFromJwtToken(token);
-        return userRepository.findByEmail(email).map(user -> {
-            if (!user.getIsActive()) {
-                user.setIsActive(true);
-                user.setVerificationToken(null);
-                user.setTokenExpiryDate(null);
-                userRepository.save(user);
-            }
-            return true;
-        }).orElse(false);
     }
 }

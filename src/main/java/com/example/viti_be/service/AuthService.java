@@ -14,7 +14,5 @@ public interface AuthService {
     void changePassword(String username, String oldPassword, String newPassword);
     void registerUser(SignupRequest signUpRequest);
     void verifyUser(String email, String otp);
-    boolean verifyAccount(String token);
-    void sendVerificationEmail(User user);
     JwtResponse loginWithGoogle(String idTokenString) throws Exception;
 }
