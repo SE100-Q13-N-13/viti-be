@@ -1,9 +1,10 @@
 package com.example.viti_be.controller;
 
+import com.example.viti_be.dto.request.SupplierRequest;
+import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.model.Supplier;
 import com.example.viti_be.service.SupplierService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -18,37 +19,37 @@ public class SupplierController {
 
     // 1. CREATE (Tạo mới Supplier)
     @PostMapping
-    public ResponseEntity<Supplier> createSupplier(@RequestBody Supplier supplier) {
-        Supplier newSupplier = supplierService.createSupplier(supplier);
-        return new ResponseEntity<>(newSupplier, HttpStatus.CREATED);
+    public ResponseEntity<ApiResponse<Supplier>> createSupplier(@RequestBody SupplierRequest request) {
+        Supplier newSupplier = supplierService.createSupplier(request);
+        return ResponseEntity.ok(ApiResponse.success(newSupplier, "Supplier created successfully"));
     }
 
     // 2. READ (Lấy Supplier theo ID)
     @GetMapping("/{id}")
-    public ResponseEntity<Supplier> getSupplierById(@PathVariable("id") UUID id) {
+    public ResponseEntity<ApiResponse<Supplier>> getSupplierById(@PathVariable("id") UUID id) {
         Supplier supplier = supplierService.getSupplierById(id);
-        return ResponseEntity.ok(supplier);
+        return ResponseEntity.ok(ApiResponse.success(supplier, "Supplier fetched successfully"));
         // Lưu ý: Trong implementation Service cần xử lý NotFoundException
     }
 
     // 3. READ ALL (Lấy tất cả Suppliers)
     @GetMapping
-    public ResponseEntity<List<Supplier>> getAllSuppliers() {
+    public ResponseEntity<ApiResponse<List<Supplier>>> getAllSuppliers() {
         List<Supplier> suppliers = supplierService.getAllSuppliers();
-        return ResponseEntity.ok(suppliers);
+        return ResponseEntity.ok(ApiResponse.success(suppliers, "Suppliers fetched successfully"));
     }
 
     // 4. UPDATE (Cập nhật Supplier)
     @PutMapping("/{id}")
-    public ResponseEntity<Supplier> updateSupplier(@PathVariable("id") UUID id, @RequestBody Supplier supplierDetails) {
-        Supplier updatedSupplier = supplierService.updateSupplier(id, supplierDetails);
-        return ResponseEntity.ok(updatedSupplier);
+    public ResponseEntity<ApiResponse<Supplier>> updateSupplier(@PathVariable("id") UUID id, @RequestBody SupplierRequest request) {
+        Supplier updatedSupplier = supplierService.updateSupplier(id, request);
+        return ResponseEntity.ok(ApiResponse.success(updatedSupplier, "Supplier updated successfully"));
     }
 
     // 5. DELETE (Xóa Supplier)
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSupplier(@PathVariable("id") UUID id) {
+    public ResponseEntity<ApiResponse<Void>> deleteSupplier(@PathVariable("id") UUID id) {
         supplierService.deleteSupplier(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null, "Deleted supplier"));
     }
 }

@@ -21,11 +21,17 @@ public class Supplier extends BaseEntity {
     @Column(name = "name")
     private String name;
 
+    @Column(name = "contact_name")
+    private String contact_name;
+
     @Column(name = "phone")
     private String phone;
 
     @Column(name = "address")
     private String address;
+
+    @Column(name = "email")
+    private String email;
 
 //    // Mối quan hệ One-to-Many với Product
 //    @OneToMany(mappedBy = "suppliers", cascade = CascadeType.ALL)
