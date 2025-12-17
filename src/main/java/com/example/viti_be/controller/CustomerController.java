@@ -26,12 +26,8 @@ public class CustomerController {
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<ApiResponse<CustomerResponse>> createCustomer(@Valid @RequestBody CustomerRequest request) {
         CustomerResponse customer = customerService.createCustomer(request);
-        ApiResponse<CustomerResponse> response = ApiResponse.<CustomerResponse>builder()
-                .code(HttpStatus.CREATED.value())
-                .message("Customer created successfully")
-                .result(customer)
-                .build();
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(customer, "Customer created successfully"));
     }
 
     @PutMapping("/{id}")
@@ -40,47 +36,28 @@ public class CustomerController {
             @PathVariable UUID id,
             @Valid @RequestBody CustomerRequest request) {
         CustomerResponse customer = customerService.updateCustomer(id, request);
-        ApiResponse<CustomerResponse> response = ApiResponse.<CustomerResponse>builder()
-                .code(HttpStatus.OK.value())
-                .message("Customer updated successfully")
-                .result(customer)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(customer, "Customer updated successfully"));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<ApiResponse<CustomerResponse>> getCustomerById(@PathVariable UUID id) {
         CustomerResponse customer = customerService.getCustomerById(id);
-        ApiResponse<CustomerResponse> response = ApiResponse.<CustomerResponse>builder()
-                .code(HttpStatus.OK.value())
-                .message("Customer retrieved successfully")
-                .result(customer)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(customer, "Customer retrieved successfully"));
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAllCustomers() {
         List<CustomerResponse> customers = customerService.getAllCustomers();
-        ApiResponse<List<CustomerResponse>> response = ApiResponse.<List<CustomerResponse>>builder()
-                .code(HttpStatus.OK.value())
-                .message("Customers retrieved successfully")
-                .result(customers)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(customers, "Customers retrieved successfully"));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteCustomer(@PathVariable UUID id) {
         customerService.deleteCustomer(id);
-        ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .code(HttpStatus.OK.value())
-                .message("Customer deleted successfully")
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(null, "Customer deleted successfully"));
     }
 
     @PostMapping("/{customerId}/addresses")
@@ -89,12 +66,8 @@ public class CustomerController {
             @PathVariable UUID customerId,
             @Valid @RequestBody AddressRequest request) {
         CustomerResponse customer = customerService.addAddress(customerId, request);
-        ApiResponse<CustomerResponse> response = ApiResponse.<CustomerResponse>builder()
-                .code(HttpStatus.CREATED.value())
-                .message("Address added successfully")
-                .result(customer)
-                .build();
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(customer, "Address added successfully"));
     }
 
     @DeleteMapping("/{customerId}/addresses/{addressId}")
@@ -103,10 +76,6 @@ public class CustomerController {
             @PathVariable UUID customerId,
             @PathVariable UUID addressId) {
         customerService.deleteAddress(customerId, addressId);
-        ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .code(HttpStatus.OK.value())
-                .message("Address deleted successfully")
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(null, "Address deleted successfully"));
     }
 }

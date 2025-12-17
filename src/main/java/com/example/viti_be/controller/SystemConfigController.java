@@ -25,12 +25,8 @@ public class SystemConfigController {
     @PostMapping
     public ResponseEntity<ApiResponse<SystemConfigResponse>> createConfig(@Valid @RequestBody SystemConfigRequest request) {
         SystemConfigResponse config = systemConfigService.createConfig(request);
-        ApiResponse<SystemConfigResponse> response = ApiResponse.<SystemConfigResponse>builder()
-                .code(HttpStatus.CREATED.value())
-                .message("System config created successfully")
-                .result(config)
-                .build();
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(config, "System config created successfully"));
     }
 
     @PutMapping("/{id}")
@@ -38,54 +34,30 @@ public class SystemConfigController {
             @PathVariable UUID id,
             @Valid @RequestBody SystemConfigRequest request) {
         SystemConfigResponse config = systemConfigService.updateConfig(id, request);
-        ApiResponse<SystemConfigResponse> response = ApiResponse.<SystemConfigResponse>builder()
-                .code(HttpStatus.OK.value())
-                .message("System config updated successfully")
-                .result(config)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(config, "System config updated successfully"));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<SystemConfigResponse>> getConfigById(@PathVariable UUID id) {
         SystemConfigResponse config = systemConfigService.getConfigById(id);
-        ApiResponse<SystemConfigResponse> response = ApiResponse.<SystemConfigResponse>builder()
-                .code(HttpStatus.OK.value())
-                .message("System config retrieved successfully")
-                .result(config)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(config, "System config retrieved successfully"));
     }
 
     @GetMapping("/key/{configKey}")
     public ResponseEntity<ApiResponse<SystemConfigResponse>> getConfigByKey(@PathVariable String configKey) {
         SystemConfigResponse config = systemConfigService.getConfigByKey(configKey);
-        ApiResponse<SystemConfigResponse> response = ApiResponse.<SystemConfigResponse>builder()
-                .code(HttpStatus.OK.value())
-                .message("System config retrieved successfully")
-                .result(config)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(config, "System config retrieved successfully"));
     }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<SystemConfigResponse>>> getAllConfigs() {
         List<SystemConfigResponse> configs = systemConfigService.getAllConfigs();
-        ApiResponse<List<SystemConfigResponse>> response = ApiResponse.<List<SystemConfigResponse>>builder()
-                .code(HttpStatus.OK.value())
-                .message("System configs retrieved successfully")
-                .result(configs)
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(configs, "System configs retrieved successfully"));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteConfig(@PathVariable UUID id) {
         systemConfigService.deleteConfig(id);
-        ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .code(HttpStatus.OK.value())
-                .message("System config deleted successfully")
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(null, "System config deleted successfully"));
     }
 }
