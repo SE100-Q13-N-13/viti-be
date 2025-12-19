@@ -53,17 +53,18 @@ public class InventoryController {
         return ResponseEntity.ok(ApiResponse.success(response, "Inventory fetched successfully"));
     }
 
-    /**
-     * Get low stock items (below threshold)
-     * GET /api/inventory/low-stock
-     */
-    @Operation(summary = "Get low stock items")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
-    @GetMapping("/low-stock")
-    public ResponseEntity<ApiResponse<List<InventoryResponse>>> getLowStockItems() {
-        List<InventoryResponse> response = inventoryService.getLowStockItems();
-        return ResponseEntity.ok(ApiResponse.success(response, "Low stock items fetched successfully"));
-    }
+    // TODO: Temporarily disabled
+    // /**
+    //  * Get low stock items (below threshold)
+    //  * GET /api/inventory/low-stock
+    //  */
+    // @Operation(summary = "Get low stock items")
+    // @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
+    // @GetMapping("/low-stock")
+    // public ResponseEntity<ApiResponse<List<InventoryResponse>>> getLowStockItems() {
+    //     List<InventoryResponse> response = inventoryService.getLowStockItems();
+    //     return ResponseEntity.ok(ApiResponse.success(response, "Low stock items fetched successfully"));
+    // }
 
     /**
      * Get serials by Product Variant ID
@@ -77,18 +78,6 @@ public class InventoryController {
             @RequestParam(required = false) ProductSerialStatus status) {
         List<ProductSerialResponse> response = inventoryService.getSerialsByProductVariantId(productVariantId, status);
         return ResponseEntity.ok(ApiResponse.success(response, "Serials fetched successfully"));
-    }
-
-    /**
-     * Get serial by serial number
-     * GET /api/inventory/serials/{serialNumber}
-     */
-    @Operation(summary = "Get serial by serial number")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
-    @GetMapping("/serials/{serialNumber}")
-    public ResponseEntity<ApiResponse<ProductSerialResponse>> getSerialByNumber(@PathVariable String serialNumber) {
-        ProductSerialResponse response = inventoryService.getSerialByNumber(serialNumber);
-        return ResponseEntity.ok(ApiResponse.success(response, "Serial fetched successfully"));
     }
 
     /**
@@ -119,21 +108,20 @@ public class InventoryController {
         UUID updatedBy = currentUser != null ? currentUser.getId() : null;
         ProductSerial updated = inventoryService.updateSerialStatus(serialNumber, request.getStatus(), updatedBy);
         
-        // Map to response
-        ProductSerialResponse response = inventoryService.getSerialByNumber(serialNumber);
-        return ResponseEntity.ok(ApiResponse.success(response, "Serial status updated successfully"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Serial status updated successfully"));
     }
 
-    /**
-     * Check if serial is available for sale (Helper endpoint for Order module)
-     * GET /api/inventory/serials/{serialNumber}/available
-     */
-    @Operation(summary = "Check if serial is available for sale")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
-    @GetMapping("/serials/{serialNumber}/available")
-    public ResponseEntity<ApiResponse<Boolean>> checkSerialAvailability(@PathVariable String serialNumber) {
-        boolean isAvailable = inventoryService.isSerialAvailableForSale(serialNumber);
-        return ResponseEntity.ok(ApiResponse.success(isAvailable, 
-                isAvailable ? "Serial is available" : "Serial is not available"));
-    }
+    // TODO: Temporarily disabled
+    // /**
+    //  * Check if serial is available for sale (Helper endpoint for Order module)
+    //  * GET /api/inventory/serials/{serialNumber}/available
+    //  */
+    // @Operation(summary = "Check if serial is available for sale")
+    // @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
+    // @GetMapping("/serials/{serialNumber}/available")
+    // public ResponseEntity<ApiResponse<Boolean>> checkSerialAvailability(@PathVariable String serialNumber) {
+    //     boolean isAvailable = inventoryService.isSerialAvailableForSale(serialNumber);
+    //     return ResponseEntity.ok(ApiResponse.success(isAvailable, 
+    //             isAvailable ? "Serial is available" : "Serial is not available"));
+    // }
 }
