@@ -1,22 +1,40 @@
 package com.example.viti_be.model;
 
+
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.List;
+import java.util.UUID;
 
 @Entity
-@Table(name = "suppliers")
 @Getter
 @Setter
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "suppliers")
 public class Supplier extends BaseEntity {
-    @Column(nullable = false)
+
+    @Column(name = "name")
     private String name;
 
     @Column(name = "contact_name")
-    private String contactName;
+    private String contact_name;
 
+    @Column(name = "phone")
     private String phone;
-    private String email;
+
+    @Column(name = "address")
     private String address;
+
+    @Column(name = "email")
+    private String email;
+
+//    // Mối quan hệ One-to-Many với Product
+//    @OneToMany(mappedBy = "suppliers", cascade = CascadeType.ALL)
+//    private List<Product> products;
+
 }

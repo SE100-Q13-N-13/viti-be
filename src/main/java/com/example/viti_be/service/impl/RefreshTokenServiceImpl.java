@@ -27,20 +27,26 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         return refreshTokenRepository.findByToken(token);
     }
 
+    @Transactional
     public RefreshToken createRefreshToken(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found for refresh token creation."));
 
         // Xóa refresh token cũ nếu có
-        refreshTokenRepository.deleteByUser(user);
+        Optional<RefreshToken> existingToken = refreshTokenRepository.findByUser(user);
 
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setUser(user);
+        RefreshToken refreshToken;
+
+        if (existingToken.isPresent()) {
+            refreshToken = existingToken.get();
+        } else {
+            refreshToken = new RefreshToken();
+            refreshToken.setUser(user);
+        }
+        refreshToken.setToken(UUID.randomUUID().toString()); // Tạo token mới
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
-        refreshToken.setToken(UUID.randomUUID().toString()); // Tạo token ngẫu nhiên
 
-        refreshToken = refreshTokenRepository.save(refreshToken);
-        return refreshToken;
+        return refreshTokenRepository.save(refreshToken);
     }
 
     // Kiểm tra token có hợp lệ (chưa hết hạn) không

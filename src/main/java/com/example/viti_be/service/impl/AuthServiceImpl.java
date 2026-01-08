@@ -176,6 +176,15 @@ public class AuthServiceImpl implements AuthService {
         user.setPhone(signUpRequest.getPhone());
         user.setStatus("PENDING");
 
+        // Gán role ROLE_CUSTOMER cho user mới
+        Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
+                .orElseThrow(() -> new RuntimeException("Error: Role 'ROLE_CUSTOMER' is not found."));
+
+        UserRole userRole = new UserRole();
+        userRole.setUser(user);
+        userRole.setRole(customerRole);
+        user.getUserRoles().add(userRole);
+
         String otp = String.valueOf((int) (Math.random() * 900000) + 100000);
         user.setVerificationCode(otp);
         user.setVerificationExpiration(LocalDateTime.now().plusMinutes(15));
