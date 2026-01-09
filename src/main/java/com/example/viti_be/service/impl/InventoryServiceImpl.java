@@ -13,9 +13,11 @@ import com.example.viti_be.repository.ProductSerialRepository;
 import com.example.viti_be.repository.ProductVariantRepository;
 import com.example.viti_be.service.InventoryService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -205,6 +207,105 @@ public class InventoryServiceImpl implements InventoryService {
         return productSerialRepository.save(serial);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId) {
+        // Lock row trong DB (nếu cần) hoặc dùng logic check thông thường
+        Inventory inventory = getOrCreateInventory(productVariantId, actorId);
+
+        if (inventory.getQuantityAvailable() < quantity) {
+            throw new BadRequestException(String.format(
+                    "Không đủ tồn kho khả dụng cho sản phẩm %s. Yêu cầu: %d, Còn: %d",
+                    inventory.getProductVariant().getSku(), quantity, inventory.getQuantityAvailable()
+            ));
+        }
+
+        // Logic chuyển dịch trạng thái kho
+        inventory.setQuantityAvailable(inventory.getQuantityAvailable() - quantity);
+        inventory.setQuantityReserved(inventory.getQuantityReserved() + quantity);
+        inventory.setUpdatedBy(actorId);
+
+        inventoryRepository.save(inventory);
+
+        // TODO: Log inventory history transaction (StockTransaction)
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unreserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId) {
+        Inventory inventory = getOrCreateInventory(productVariantId, actorId);
+
+        // Trả lại hàng vào Available
+        inventory.setQuantityAvailable(inventory.getQuantityAvailable() + quantity);
+
+        // Giảm Reserved
+        int newReserved = inventory.getQuantityReserved() - quantity;
+        if (newReserved < 0) {
+            // Trường hợp này hiếm khi xảy ra nếu logic đúng, nhưng cần handle safety
+            // Có thể log warning
+            newReserved = 0;
+        }
+        inventory.setQuantityReserved(newReserved);
+        inventory.setUpdatedBy(actorId);
+
+        inventoryRepository.save(inventory);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void confirmStockOut(UUID productVariantId, int quantity, String orderRef, UUID actorId) {
+        Inventory inventory = getOrCreateInventory(productVariantId, actorId);
+
+        // Khi confirm, hàng đã nằm trong Reserved rồi.
+        if (inventory.getQuantityReserved() < quantity) {
+            throw new BadRequestException("Lỗi dữ liệu kho: Số lượng Reserved ít hơn số lượng cần xuất.");
+        }
+
+        inventory.setQuantityReserved(inventory.getQuantityReserved() - quantity);
+        inventory.setQuantityPhysical(inventory.getQuantityPhysical() - quantity); // Giảm tổng kho thực tế
+        inventory.setUpdatedBy(actorId);
+
+        inventoryRepository.save(inventory);
+    }
+
+    @Override
+    public List<ProductSerial> allocateSerials(UUID productVariantId, UUID requestSerialId, int quantity) {
+        List<ProductSerial> result = new ArrayList<>();
+
+        if (requestSerialId != null) {
+            // CASE 1: Mua chỉ định (Offline scan mã vạch hoặc chọn đích danh trên web)
+            ProductSerial serial = productSerialRepository.findById(requestSerialId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Serial ID not found: " + requestSerialId));
+
+            // Validate logic
+            if (!serial.getProductVariant().getId().equals(productVariantId)) {
+                throw new BadRequestException("Serial không khớp với sản phẩm trong đơn hàng.");
+            }
+            if (serial.getStatus() != ProductSerialStatus.AVAILABLE) {
+                throw new BadRequestException("Serial " + serial.getSerialNumber() + " không khả dụng (Trạng thái: " + serial.getStatus() + ")");
+            }
+
+            // Với case chỉ định, số lượng thường là 1 (đã được tách dòng ở OrderService)
+            result.add(serial);
+
+        } else {
+            // CASE 2: Mua tự động (Online hoặc không cần chọn serial) -> Lấy theo FIFO
+            List<ProductSerial> serials = productSerialRepository.findAvailableByVariantId(
+                    productVariantId,
+                    PageRequest.of(0, quantity) // Lấy đúng số lượng cần thiết
+            );
+
+            if (serials.size() < quantity) {
+                throw new BadRequestException(String.format(
+                        "Không đủ Serial khả dụng trong kho. Cần: %d, Tìm thấy: %d", quantity, serials.size()
+                ));
+            }
+            result.addAll(serials);
+        }
+
+        return result;
+    }
+
     private InventoryResponse mapToResponse(Inventory inventory) {
         ProductVariant pv = inventory.getProductVariant();
         
@@ -230,7 +331,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .updatedAt(inventory.getUpdatedAt())
                 .build();
     }
-    
+
     private ProductSerialResponse mapSerialToResponse(ProductSerial serial) {
         ProductVariant pv = serial.getProductVariant();
         
@@ -255,4 +356,5 @@ public class InventoryServiceImpl implements InventoryService {
                 .warrantyExpireDate(serial.getWarrantyExpireDate())
                 .build();
     }
+
 }

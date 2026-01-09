@@ -135,4 +135,28 @@ public interface InventoryService {
      * @return Updated ProductSerial
      */
     ProductSerial markSerialAsDefective(String serialNumber, UUID updatedBy);
+
+    /**
+     * Giữ hàng (Reservation): Giảm Available, Tăng Reserved
+     */
+    void reserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId);
+
+    /**
+     * Hủy giữ hàng (Un-reservation): Trả lại Available, Giảm Reserved
+     * Dùng khi hủy đơn hàng
+     */
+    void unreserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId);
+
+    /**
+     * Xác nhận xuất kho (Stock Out): Giảm Reserved, Giảm Physical
+     * Dùng khi đơn hàng hoàn tất/giao đi
+     */
+    void confirmStockOut(UUID productVariantId, int quantity, String orderRef, UUID actorId);
+
+    /**
+     * Cấp phát Serial cho đơn hàng
+     * - Nếu requestSerialId != null: Lấy đúng serial đó (Bán chỉ định)
+     * - Nếu requestSerialId == null: Lấy tự động theo FIFO
+     */
+    List<ProductSerial> allocateSerials(UUID productVariantId, UUID requestSerialId, int quantity);
 }
