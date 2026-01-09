@@ -6,6 +6,10 @@ import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.model.Product;
 import com.example.viti_be.model.ProductVariant;
 import com.example.viti_be.service.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +42,17 @@ public class ProductController {
     // Tạo sản phẩm mới (Chỉ Admin/Kho)
     @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Tạo sản phẩm mới",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            encoding = {
+                                    @Encoding(name = "data", contentType = "application/json") // <--- DÒNG QUAN TRỌNG NHẤT
+                            }
+                    )
+            )
+    )
     public ResponseEntity<ApiResponse<Product>> createProduct(
             @RequestPart("data") ProductRequest request,
             @RequestPart(value = "image", required = false) MultipartFile image) {

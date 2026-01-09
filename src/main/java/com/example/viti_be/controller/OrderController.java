@@ -3,7 +3,6 @@ package com.example.viti_be.controller;
 import com.example.viti_be.dto.request.CreateOrderRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.OrderResponse;
-import com.example.viti_be.model.Order;
 import com.example.viti_be.model.model_enum.OrderStatus;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.OrderService;

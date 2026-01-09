@@ -184,6 +184,7 @@ public class OrderServiceImpl implements OrderService {
                 OrderItem item = OrderItem.builder()
                         .order(order)
                         .productVariant(variant)
+                        .product(variant.getProduct())
                         .productSerial(serial) // SET OBJECT SERIAL
                         .quantity(1) // Item có serial luôn là 1
                         .unitPrice(unitPrice)

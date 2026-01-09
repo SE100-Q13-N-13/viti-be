@@ -29,6 +29,10 @@ public class OrderItem {
     @JoinColumn(name = "product_variant_id", nullable = false)
     private ProductVariant productVariant;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false) // Map với cột product_id trong DB
+    private Product product;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_serial_id")
     private ProductSerial productSerial;
