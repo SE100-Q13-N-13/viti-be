@@ -43,6 +43,9 @@ public class ProductSerial {
     @Column(name = "warranty_expire_date")
     private LocalDateTime warrantyExpireDate;
 
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
     @PrePersist
     protected void onCreate() {
         if (this.status == null) {

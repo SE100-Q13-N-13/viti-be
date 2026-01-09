@@ -1,40 +1,67 @@
 package com.example.viti_be.model;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 @Table(name = "order_items")
 public class OrderItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Mối quan hệ Many-to-One với Product
-    @ManyToOne
-    @JoinColumn(name = "product_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    @ToString.Exclude
+    private Order order;
+
+    // 2. Biến thể sản phẩm (SKU)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_variant_id", nullable = false)
+    private ProductVariant productVariant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false) // Map với cột product_id trong DB
     private Product product;
 
-    @Column(name = "quantity")
-    private Integer quantity;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_serial_id")
+    private ProductSerial productSerial;
 
-    @Column(name = "unit_price")
-    private Double unitPrice;
+    @Column(name = "quantity", nullable = false)
+    private int quantity;
 
-    @Column(name = "discount")
-    private Double discount;
+    @Column(name = "cost_price", precision = 15, scale = 2)
+    private BigDecimal costPrice;
 
-    @Column(name = "subtotal")
-    private Double subtotal;
+    @Column(name = "unit_price", precision = 15, scale = 2)
+    private BigDecimal unitPrice;
 
-    // Mối quan hệ Many-to-One với Order (cần cho việc quản lý)
-    @ManyToOne
-    @JoinColumn(name = "order_id", nullable = false)
-    private Order order;
+    @Column(name = "subtotal", precision = 15, scale = 2)
+    private BigDecimal subtotal;
+
+    @Column(name = "discount", precision = 15, scale = 2)
+    private BigDecimal discount;
+
+    @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<OrderItemPromotion> appliedPromotions = new ArrayList<>();
+
+    @Column(name = "warranty_expire_date")
+    private LocalDateTime warrantyPeriodSnapshot;
+
+    public BigDecimal getFinalTotal() {
+        if (subtotal == null) return BigDecimal.ZERO;
+        BigDecimal disc = discount == null ? BigDecimal.ZERO : discount;
+        return subtotal.subtract(disc);
+    }
 }
