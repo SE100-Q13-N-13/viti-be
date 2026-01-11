@@ -9,9 +9,7 @@ import com.example.viti_be.dto.response.PurchaseOrderResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
-import com.example.viti_be.model.model_enum.InventoryAdjustmentStatus;
-import com.example.viti_be.model.model_enum.PurchaseOrderStatus;
-import com.example.viti_be.model.model_enum.StockTransactionType;
+import com.example.viti_be.model.model_enum.*;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.AuditLogService;
 import com.example.viti_be.service.InventoryService;
@@ -35,7 +33,7 @@ import java.util.stream.Collectors;
 public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private static final Logger logger = LoggerFactory.getLogger(PurchaseOrderServiceImpl.class);
-    private static final String MODULE_NAME = "PURCHASE_ORDER";
+    private static final AuditModule MODULE_NAME = AuditModule.PURCHASE_ORDER;
 
     @Autowired
     private PurchaseOrderRepository purchaseOrderRepository;
@@ -107,7 +105,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
 
         // 8. Log to audit_logs
-        logAudit(createdBy, "CREATE", purchaseOrder.getId().toString(), null, purchaseOrder);
+        logAudit(createdBy, AuditAction.CREATE, purchaseOrder.getId().toString(), null, purchaseOrder);
 
         logger.info("Purchase Order created successfully with PO Number: {}", poNumber);
         return mapToResponse(purchaseOrder);
@@ -236,7 +234,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
 
             // 7. Log to audit_logs
-            logAudit(updatedBy, "RECEIVE", purchaseOrder.getId().toString(), oldValueJson, purchaseOrder);
+            logAudit(updatedBy, AuditAction.RECEIVE_GOODS, purchaseOrder.getId().toString(), oldValueJson, purchaseOrder);
 
             logger.info("Goods receipt completed for PO Number: {}", purchaseOrder.getPoNumber());
             return mapToResponse(purchaseOrder);
@@ -288,7 +286,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         purchaseOrder.setUpdatedBy(updatedBy);
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
 
-        logAudit(updatedBy, "CLOSE", purchaseOrder.getId().toString(), oldValueJson, purchaseOrder);
+        logAudit(updatedBy, AuditAction.CLOSE_PO, purchaseOrder.getId().toString(), oldValueJson, purchaseOrder);
 
         return mapToResponse(purchaseOrder);
     }
@@ -308,7 +306,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         purchaseOrder.setUpdatedBy(deletedBy);
         purchaseOrderRepository.save(purchaseOrder);
 
-        logAudit(deletedBy, "DELETE", purchaseOrder.getId().toString(), oldValueJson, null);
+        logAudit(deletedBy, AuditAction.DELETE, purchaseOrder.getId().toString() , oldValueJson, null);
     }
 
     // ==================== Private Helper Methods ====================
@@ -424,9 +422,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     /**
      * Log audit event
      */
-    private void logAudit(UUID actorId, String action, String resourceId, String oldValue, Object newValue) {
+    private void logAudit(UUID actorId, AuditAction action, String resourceId, String oldValue, Object newValue) {
         String newValueJson = newValue != null ? toJson(newValue) : null;
-        auditLogService.logSuccess(actorId, MODULE_NAME, action, resourceId, oldValue, newValueJson);
+        auditLogService.logSuccess(actorId, MODULE_NAME, action, resourceId, "purchaseOrder", oldValue, newValueJson);
     }
 
     /**

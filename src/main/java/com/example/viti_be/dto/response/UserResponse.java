@@ -1,6 +1,7 @@
 package com.example.viti_be.dto.response;
 
 import com.example.viti_be.model.User;
+import com.example.viti_be.model.model_enum.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,7 +18,7 @@ public class UserResponse {
     private String fullName;
     private String phone;
     private String avatar;
-    private String status;
+    private UserStatus status;
     private Boolean isFirstLogin;
 
     // Mapper

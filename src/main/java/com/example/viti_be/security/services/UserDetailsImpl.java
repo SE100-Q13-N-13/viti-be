@@ -1,6 +1,7 @@
 package com.example.viti_be.security.services;
 
 import com.example.viti_be.model.User;
+import com.example.viti_be.model.model_enum.UserStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,6 +30,10 @@ public class UserDetailsImpl implements UserDetails {
     private String password;
     private Collection<? extends GrantedAuthority> authorities;
 
+    private Boolean isActive;
+    private UserStatus status;
+
+
     public static UserDetailsImpl build(User user) {
         // Chuyển đổi từ Set<UserRole> sang List<GrantedAuthority>
         List<GrantedAuthority> authorities = user.getUserRoles().stream()
@@ -40,21 +45,22 @@ public class UserDetailsImpl implements UserDetails {
                 user.getUsername(),
                 user.getEmail(),
                 user.getPassword(),
-                authorities);
+                authorities,
+                user.getIsActive(),
+                user.getStatus());
+    }
+
+
+    @Override
+    public boolean isAccountNonExpired() { return true; }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return !"SUSPENDED".equals(status) && !"TERMINATED".equals(status);
     }
 
     @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() { return authorities; }
-    @Override
-    public String getPassword() { return password; }
-    @Override
-    public String getUsername() { return username; }
-    @Override
-    public boolean isAccountNonExpired() { return true; }
-    @Override
-    public boolean isAccountNonLocked() { return true; } // Logic check status SUSPENDED
-    @Override
     public boolean isCredentialsNonExpired() { return true; }
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { return isActive; }
 }

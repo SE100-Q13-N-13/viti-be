@@ -47,7 +47,7 @@ public class Order extends BaseEntity {
     private List<OrderPromotion> appliedPromotions;
 
     @Column(name = "loyalty_points_used")
-    private int loyaltyPointsUsed;
+    private Integer loyaltyPointsUsed;
 
     // ==========================================
     // KHU VỰC TÀI CHÍNH (Dùng BigDecimal)
@@ -82,7 +82,7 @@ public class Order extends BaseEntity {
     private String tierName;
 
     @Column(name = "tier_discount_rate")
-    private Double tierDiscountRate;
+    private BigDecimal tierDiscountRate;
 
     @Column(name = "tier_discount_amount", precision = 15, scale = 2)
     private BigDecimal tierDiscountAmount;

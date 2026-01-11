@@ -4,14 +4,21 @@ import com.example.viti_be.dto.request.CreateEmployeeRequest;
 import com.example.viti_be.dto.request.LoginRequest;
 import com.example.viti_be.dto.request.SignupRequest;
 import com.example.viti_be.dto.response.JwtResponse;
+import com.example.viti_be.exception.AuthenticationException;
+import com.example.viti_be.exception.BadRequestException;
+import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.RefreshToken;
 import com.example.viti_be.model.Role;
 import com.example.viti_be.model.User;
 import com.example.viti_be.model.UserRole;
+import com.example.viti_be.model.model_enum.AuditAction;
+import com.example.viti_be.model.model_enum.AuditModule;
+import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.repository.RoleRepository;
 import com.example.viti_be.repository.UserRepository;
 import com.example.viti_be.security.jwt.JwtUtils;
 import com.example.viti_be.security.services.UserDetailsImpl;
+import com.example.viti_be.service.AuditLogService;
 import com.example.viti_be.service.AuthService;
 import com.example.viti_be.service.EmailService;
 import com.example.viti_be.service.RefreshTokenService;
@@ -32,6 +39,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,6 +52,7 @@ public class AuthServiceImpl implements AuthService {
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired EmailService emailService;
     @Autowired RefreshTokenService refreshTokenService;
+    @Autowired AuditLogService auditLogService;
 
     @Value("${viti.app.googleClientId}")
     String googleClientId;
@@ -68,7 +77,8 @@ public class AuthServiceImpl implements AuthService {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
 
-        User user = userRepository.findById(userDetails.getId()).orElseThrow();
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // 4. Trả về JwtResponse
         return new JwtResponse(
@@ -85,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void createEmployee(CreateEmployeeRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+            throw new BadRequestException("Error: Email is already in use!");
         }
 
         User user = new User();
@@ -94,11 +104,12 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setFullName(request.getFullName());
         user.setPhone(request.getPhone());
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
         user.setIsFirstLogin(true);
+        user.setIsActive(true);
 
         Role role = roleRepository.findByName(request.getRoleName())
-                .orElseThrow(() -> new RuntimeException("Error: Role not found."));
+                .orElseThrow(() -> new ResourceNotFoundException("Error: Role not found."));
 
         UserRole userRole = new UserRole();
         userRole.setUser(user);
@@ -106,13 +117,22 @@ public class AuthServiceImpl implements AuthService {
 
         user.getUserRoles().add(userRole);
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        auditLogService.logSuccess(
+                getCurrentUserId(),
+                AuditModule.STAFF,
+                AuditAction.CREATE,
+                savedUser.getId().toString(),
+                "USER",
+                null,
+                null
+        );
     }
 
     @Override
     public void forgotPassword(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         String otp = String.valueOf((int) (Math.random() * 900000) + 100000);
         user.setVerificationCode(otp);
@@ -125,23 +145,33 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void resetPasswordWithOtp(String email, String otp, String newPassword) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (user.getVerificationExpiration() == null || user.getVerificationExpiration().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP Expired");
+            throw new BadRequestException("OTP has expired");
         }
 
         if (!user.getVerificationCode().equals(otp)) {
-            throw new RuntimeException("Invalid OTP");
+            throw new BadRequestException("Invalid OTP");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setVerificationCode(null);
         user.setVerificationExpiration(null);
         user.setIsFirstLogin(false);
-        user.setStatus("ACTIVE");
+        user.setStatus(UserStatus.ACTIVE);
 
         userRepository.save(user);
+
+        auditLogService.logSuccess(
+                user.getId(),
+                AuditModule.STAFF,
+                AuditAction.UPDATE,
+                user.getId().toString(),
+                "USER",
+                null,
+                null
+        );
     }
 
     @Override
@@ -150,7 +180,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
-            throw new RuntimeException("Old password is incorrect");
+            throw new BadRequestException("Old password is incorrect");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
@@ -161,11 +191,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void registerUser(SignupRequest signUpRequest) {
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
-            throw new RuntimeException("Error: Username is already taken!");
+            throw new BadRequestException("Error: Username is already taken!");
         }
 
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+            throw new BadRequestException("Error: Email is already in use!");
         }
 
         User user = new User();
@@ -174,11 +204,13 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
         user.setFullName(signUpRequest.getFullName());
         user.setPhone(signUpRequest.getPhone());
-        user.setStatus("PENDING");
+        user.setStatus(UserStatus.PENDING);
+        user.setIsActive(false);
+        user.setIsFirstLogin(true);
 
         // Gán role ROLE_CUSTOMER cho user mới
         Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
-                .orElseThrow(() -> new RuntimeException("Error: Role 'ROLE_CUSTOMER' is not found."));
+                .orElseThrow(() -> new ResourceNotFoundException("Error: Role 'ROLE_CUSTOMER' is not found."));
 
         UserRole userRole = new UserRole();
         userRole.setUser(user);
@@ -197,18 +229,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void verifyUser(String email, String otp) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (user.getVerificationExpiration().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP Expired");
+            throw new BadRequestException("OTP Expired");
         }
 
         if (user.getVerificationCode().equals(otp)) {
-            user.setStatus("ACTIVE");
+            user.setStatus(UserStatus.ACTIVE);
+            user.setIsActive(true);
             user.setVerificationCode(null);
+            user.setVerificationExpiration(null);
             userRepository.save(user);
         } else {
-            throw new RuntimeException("Invalid OTP");
+            throw new BadRequestException("Invalid OTP");
         }
     }
 
@@ -223,6 +257,11 @@ public class AuthServiceImpl implements AuthService {
             GoogleIdToken.Payload payload = idToken.getPayload();
             String email = payload.getEmail();
             String name = (String) payload.get("name");
+            Boolean emailVerified = payload.getEmailVerified();
+
+            if (emailVerified == null || !emailVerified) {
+                throw new BadRequestException("Google email is not verified");
+            }
 
             User user = userRepository.findByEmail(email).orElseGet(() -> {
                 User newUser = new User();
@@ -230,10 +269,12 @@ public class AuthServiceImpl implements AuthService {
                 newUser.setUsername(email);
                 newUser.setFullName(name);
                 newUser.setPassword(passwordEncoder.encode("GOOGLE_AUTH_PLACEHOLDER"));
-                newUser.setStatus("ACTIVE");
+                newUser.setStatus(UserStatus.ACTIVE);
+                newUser.setIsActive(true);
+                newUser.setIsFirstLogin(true);
 
                 Role role = roleRepository.findByName("ROLE_CUSTOMER")
-                        .orElseThrow(() -> new RuntimeException("Error: Role 'ROLE_CUSTOMER' is not found. Please contact admin to seed data."));
+                        .orElseThrow(() -> new ResourceNotFoundException("Error: Role 'ROLE_CUSTOMER' is not found. Please contact admin to seed data."));
 
                 UserRole ur = new UserRole();
                 ur.setUser(newUser);
@@ -259,7 +300,30 @@ public class AuthServiceImpl implements AuthService {
                     user.getIsFirstLogin()
             );
         } else {
-            throw new RuntimeException("Invalid ID token.");
+            throw new AuthenticationException("Invalid ID token.");
         }
+    }
+
+    @Override
+    public void logout(UUID userId) {
+        refreshTokenService.deleteByUserId(userId);
+        // Note: Access token vẫn valid cho đến khi hết hạn (stateless JWT)
+        // Nếu cần revoke ngay, phải implement token blacklist
+    }
+
+    /**
+     * Helper method để lấy ID của user đang login
+     * Dùng cho audit log khi cần biết "ai đang thực hiện hành động này"
+     */
+    private UUID getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication.getPrincipal().equals("anonymousUser")) {
+            return null;
+        }
+
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return userDetails.getId();
     }
 }

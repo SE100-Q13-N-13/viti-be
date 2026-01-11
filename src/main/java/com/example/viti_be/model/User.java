@@ -1,5 +1,6 @@
 package com.example.viti_be.model;
 
+import com.example.viti_be.model.model_enum.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,8 +33,9 @@ public class User extends BaseEntity {
 
     private String avatar;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status; // ACTIVE, SUSPENDED...
+    private UserStatus status;
 
     @Column(name = "verification_code")
     private String verificationCode;

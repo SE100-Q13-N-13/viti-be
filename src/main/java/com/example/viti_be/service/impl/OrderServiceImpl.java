@@ -7,13 +7,17 @@ import com.example.viti_be.dto.response.OrderResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
+import com.example.viti_be.model.model_enum.AuditAction;
+import com.example.viti_be.model.model_enum.AuditModule;
 import com.example.viti_be.model.model_enum.OrderStatus;
 import com.example.viti_be.model.model_enum.OrderType;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.AuditLogService;
 import com.example.viti_be.service.InventoryService;
+import com.example.viti_be.service.LoyaltyPointService;
 import com.example.viti_be.service.OrderService;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,22 +29,20 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class OrderServiceImpl implements OrderService {
-    @Autowired
-    OrderRepository repo;
-
-    @Autowired
-    UserRepository userRepository;
-    @Autowired
-    CustomerRepository customerRepository;
-    @Autowired
-    PromotionRepository promotionRepository;
-    @Autowired
-    ProductRepository productRepository;
+    @Autowired private OrderRepository repo;
+    @Autowired private UserRepository userRepository;
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private PromotionRepository promotionRepository;
+    @Autowired private ProductRepository productRepository;
     @Autowired private ProductVariantRepository productVariantRepository;
     @Autowired private ProductSerialRepository productSerialRepository;
     @Autowired private InventoryService inventoryService;
     @Autowired private AuditLogService auditLogService;
+    @Autowired private LoyaltyPointService loyaltyPointService;
+    @Autowired private LoyaltyPointRepository loyaltyPointRepository;
+    @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
 
     @Override
     public OrderResponse getOrderById(UUID id) {
@@ -77,8 +79,8 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = repo.save(order);
 
         if (auditLogService != null) {
-            auditLogService.log(actorId, "ORDER", "CREATE",
-                    savedOrder.getId().toString(), null, savedOrder.getOrderNumber(), "Order Created");
+            auditLogService.log(actorId, AuditModule.ORDER, AuditAction.CREATE,
+                    savedOrder.getId().toString(), "order", null, savedOrder.getOrderNumber(), "Order Created");
         }
 
         return OrderMapper.mapToOrderResponse(savedOrder);
@@ -97,16 +99,25 @@ public class OrderServiceImpl implements OrderService {
             case CONFIRMED:
                 // Logic: Chuyển từ Reserved -> StockOut (Physical giảm)
                 confirmStockOutForOrder(order, actorId);
+                if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
+                    deductLoyaltyPoints(order, actorId);
+                }
+                loyaltyPointService.earnPointsFromOrder(order, actorId);
                 break;
 
             case COMPLETED:
                 if (oldStatus == OrderStatus.PENDING && order.getOrderType() == OrderType.OFFLINE) {
                     confirmStockOutForOrder(order, actorId);
+
+                    // Deduct và Earn points cho OFFLINE
+                    if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
+                        deductLoyaltyPoints(order, actorId);
+                    }
+                    loyaltyPointService.earnPointsFromOrder(order, actorId);
                 }
 
                 // Set warranty expiration date
                 LocalDateTime completionDate = LocalDateTime.now();
-
                 for (OrderItem item : order.getItems()) {
                     Integer months = item.getProductVariant().getProduct().getWarrantyPeriod();
                     if (months != null && months > 0) {
@@ -118,6 +129,9 @@ public class OrderServiceImpl implements OrderService {
 
             case CANCELLED:
                 cancelOrderInventory(order, actorId);
+                if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
+                    restoreLoyaltyPoints(order, actorId);
+                }
                 break;
             default:
                 break;
@@ -127,8 +141,8 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = repo.save(order);
 
         if (auditLogService != null) {
-            auditLogService.log(actorId, "ORDER", "UPDATE_STATUS",
-                    orderId.toString(), oldStatus.toString(), newStatus.toString(), reason);
+            auditLogService.log(actorId, AuditModule.ORDER, AuditAction.UPDATE,
+                    orderId.toString(), "order", oldStatus.toString(), newStatus.toString(), reason);
         }
 
         return OrderMapper.mapToOrderResponse(savedOrder);
@@ -234,13 +248,45 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal totalSystemDiscount = BigDecimal.ZERO;
 
         // ... Apply Promotion logic here ...
+        BigDecimal pointsDiscount = BigDecimal.ZERO;
+        BigDecimal promotionDiscount = BigDecimal.ZERO;
 
-        order.setTotalDiscount(totalSystemDiscount);
+        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
+            // Validate TRƯỚC khi tính toán
+            loyaltyPointService.validateRedemption(
+                    request.getCustomerId(),
+                    request.getLoyaltyPointsToUse(),
+                    subtotal.subtract(promotionDiscount) // Validate trên giá sau promotion, trước dùng điểm
+            );
 
-        // 4. Final Amount = Subtotal - SystemDiscount + Shipping
-        BigDecimal finalAmount = subtotal.subtract(totalSystemDiscount);
+            // Tính số tiền được giảm từ điểm
+            pointsDiscount = loyaltyPointService.calculateRedemptionAmount(
+                    request.getLoyaltyPointsToUse()
+            );
 
-        // Chặn âm
+            order.setLoyaltyPointsUsed(request.getLoyaltyPointsToUse());
+            order.setPointDiscountAmount(pointsDiscount);
+        }
+
+        BigDecimal tierDiscount = BigDecimal.ZERO;
+        if (order.getCustomer() != null && order.getCustomer().getTier() != null) {
+            BigDecimal tierRate = order.getCustomer().getTier().getDiscountRate();
+            if (tierRate != null && tierRate.compareTo(BigDecimal.ZERO) > 0) {
+                // Tier discount áp dụng trên subtotal (trước promotions)
+                tierDiscount = subtotal.multiply(tierRate)
+                        .divide(new BigDecimal(100), 2, RoundingMode.HALF_DOWN);
+
+                order.setTierDiscountRate(tierRate);
+                order.setTierDiscountAmount(tierDiscount);
+            }
+        }
+
+        // 5. Total Discount = Tier + Promotion + Points
+        BigDecimal totalDiscount = tierDiscount.add(promotionDiscount).add(pointsDiscount);
+        order.setTotalDiscount(totalDiscount);
+
+        // 6. Final Amount = Subtotal - Total Discount
+        BigDecimal finalAmount = subtotal.subtract(totalDiscount);
         order.setFinalAmount(finalAmount.max(BigDecimal.ZERO));
     }
 
@@ -298,6 +344,76 @@ public class OrderServiceImpl implements OrderService {
         String datePart = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         int random = new Random().nextInt(90000) + 10000;
         return "ORD-" + datePart + "-" + random;
+    }
+
+    /**
+     * Trừ điểm khi confirm order
+     */
+    private void deductLoyaltyPoints(Order order, UUID actorId) {
+        if (order.getCustomer() == null) {
+            log.warn("Cannot deduct points: Order {} has no customer", order.getId());
+            return;
+        }
+
+        LoyaltyPoint loyaltyPoint = loyaltyPointRepository.findByCustomerId(order.getCustomer().getId())
+                .orElseThrow(() -> new RuntimeException("Customer loyalty points not found"));
+
+        // Double-check: points có đủ không
+        if (loyaltyPoint.getPointsAvailable() < order.getLoyaltyPointsUsed()) {
+            throw new RuntimeException(String.format(
+                    "Insufficient points. Available: %d, Required: %d",
+                    loyaltyPoint.getPointsAvailable(), order.getLoyaltyPointsUsed()));
+        }
+
+        // Trừ điểm
+        loyaltyPoint.setPointsAvailable(loyaltyPoint.getPointsAvailable() - order.getLoyaltyPointsUsed());
+        loyaltyPoint.setPointsUsed(loyaltyPoint.getPointsUsed() + order.getLoyaltyPointsUsed());
+        loyaltyPoint.setLastUsedAt(LocalDateTime.now());
+        loyaltyPointRepository.save(loyaltyPoint);
+
+        // Tạo transaction record
+        User employee = userRepository.findById(actorId).orElse(null);
+        LoyaltyPointTransaction transaction = LoyaltyPointTransaction.createRedeemTransaction(
+                loyaltyPoint,
+                order,
+                order.getLoyaltyPointsUsed(),
+                employee
+        );
+        loyaltyPointTransactionRepository.save(transaction);
+
+        log.info("Deducted {} points from customer {} for order {}",
+                order.getLoyaltyPointsUsed(), order.getCustomer().getId(), order.getId());
+    }
+
+    /**
+     * Hoàn lại điểm khi cancel order
+     */
+    private void restoreLoyaltyPoints(Order order, UUID actorId) {
+        if (order.getCustomer() == null) {
+            log.warn("Cannot restore points: Order {} has no customer", order.getId());
+            return;
+        }
+
+        LoyaltyPoint loyaltyPoint = loyaltyPointRepository.findByCustomerId(order.getCustomer().getId())
+                .orElseThrow(() -> new RuntimeException("Customer loyalty points not found"));
+
+        // Hoàn lại điểm
+        loyaltyPoint.setPointsAvailable(loyaltyPoint.getPointsAvailable() + order.getLoyaltyPointsUsed());
+        loyaltyPoint.setPointsUsed(Math.max(0, loyaltyPoint.getPointsUsed() - order.getLoyaltyPointsUsed()));
+        loyaltyPointRepository.save(loyaltyPoint);
+
+        // Tạo transaction record (manual adjust với lý do refund)
+        User user = userRepository.findById(actorId).orElse(null);
+        LoyaltyPointTransaction transaction = LoyaltyPointTransaction.createManualAdjustTransaction(
+                loyaltyPoint,
+                order.getLoyaltyPointsUsed(), // Positive value = adding back
+                "Refund from cancelled order #" + order.getId(),
+                user
+        );
+        loyaltyPointTransactionRepository.save(transaction);
+
+        log.info("Restored {} points to customer {} from cancelled order {}",
+                order.getLoyaltyPointsUsed(), order.getCustomer().getId(), order.getId());
     }
 
     // TODO: Shipping logic
