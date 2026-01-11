@@ -1,6 +1,7 @@
 package com.example.viti_be.repository;
 
 import com.example.viti_be.model.AuditLog;
+import com.example.viti_be.model.model_enum.AuditModule;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     
-    List<AuditLog> findAllByModule(String module);
+    List<AuditLog> findAllByModule(AuditModule module);
     
     List<AuditLog> findAllByActorId(UUID actorId);
     
@@ -21,7 +22,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     
     @Query("SELECT a FROM AuditLog a WHERE a.module = :module AND a.createdAt BETWEEN :startDate AND :endDate ORDER BY a.createdAt DESC")
     List<AuditLog> findByModuleAndDateRange(
-            @Param("module") String module, 
+            @Param("module") AuditModule module,
             @Param("startDate") LocalDateTime startDate, 
             @Param("endDate") LocalDateTime endDate);
     

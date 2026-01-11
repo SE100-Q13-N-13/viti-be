@@ -1,5 +1,7 @@
 package com.example.viti_be.model;
 
+import com.example.viti_be.model.model_enum.AuditAction;
+import com.example.viti_be.model.model_enum.AuditModule;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,11 +24,13 @@ public class AuditLog {
     @Column(name = "actor_id")
     private UUID actorId; // User ID who performed the action
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "module", nullable = false)
-    private String module; // Module name: PURCHASE_ORDER, INVENTORY, etc.
+    private AuditModule module; // Module name: PURCHASE_ORDER, INVENTORY, etc.
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "action", nullable = false)
-    private String action; // Action: CREATE, UPDATE, DELETE, RECEIVE, etc.
+    private AuditAction action; // Action: CREATE, UPDATE, DELETE, RECEIVE, etc.
 
     @Column(name = "resource_id")
     private String resourceId; // ID of the affected resource

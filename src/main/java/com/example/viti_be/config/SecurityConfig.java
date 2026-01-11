@@ -32,9 +32,14 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
+        // --- FIX DEPRECATION HERE ---
+        // Thay vì dùng new DaoAuthenticationProvider() (rỗng) + setter
+        // Sử dụng Constructor nhận UserDetailsService trực tiếp
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
+
+        // setPasswordEncoder vẫn được sử dụng bình thường (hoặc truyền vào constructor nếu phiên bản hỗ trợ)
         authProvider.setPasswordEncoder(passwordEncoder());
+
         return authProvider;
     }
 

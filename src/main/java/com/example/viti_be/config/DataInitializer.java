@@ -2,6 +2,7 @@ package com.example.viti_be.config;
 
 import com.example.viti_be.model.*;
 import com.example.viti_be.model.composite_key.UserRoleId;
+import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.repository.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +13,6 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Set;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -66,7 +66,7 @@ public class DataInitializer implements CommandLineRunner {
                     "Admin123!",
                     "MALE",
                     LocalDate.of(1985, 1, 1),
-                    "ACTIVE",
+                    UserStatus.ACTIVE,
                     adminRole
             );
 
@@ -78,7 +78,7 @@ public class DataInitializer implements CommandLineRunner {
                     "Employee123!",
                     "FEMALE",
                     LocalDate.of(1990, 5, 15),
-                    "ACTIVE",
+                    UserStatus.ACTIVE,
                     employeeRole
             );
 
@@ -165,7 +165,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private User createUser(String fullName, String email, String phone, String password,
-                            String gender, LocalDate dob, String status, Role role) {
+                            String gender, LocalDate dob, UserStatus status, Role role) {
         User user = new User();
         user.setUsername(email);
         user.setFullName(fullName);
@@ -190,11 +190,11 @@ public class DataInitializer implements CommandLineRunner {
         return savedUser;
     }
 
-    private Customer createCustomerUser(String fullName, String email, String phone, String password,
-                                        String gender, LocalDate dob, Role customerRole,
-                                        CustomerTier tier, long totalSpending) {
+    private void createCustomerUser(String fullName, String email, String phone, String password,
+                                    String gender, LocalDate dob, Role customerRole,
+                                    CustomerTier tier, long totalSpending) {
         // Create User first
-        User user = createUser(fullName, email, phone, password, gender, dob, "ACTIVE", customerRole);
+        User user = createUser(fullName, email, phone, password, gender, dob, UserStatus.ACTIVE, customerRole);
 
         // Create Customer
         Customer customer = new Customer();
@@ -216,6 +216,5 @@ public class DataInitializer implements CommandLineRunner {
         loyaltyPointRepository.save(loyaltyPoint);
 
         log.info("Created customer: {} with tier: {} and {} spending", fullName, tier.getName(), totalSpending);
-        return savedCustomer;
     }
 }
