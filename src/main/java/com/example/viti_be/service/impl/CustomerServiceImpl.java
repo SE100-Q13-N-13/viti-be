@@ -175,6 +175,34 @@ public class CustomerServiceImpl implements CustomerService {
         addressRepository.save(address);
     }
 
+    // Trong CustomerServiceImpl.java
+    @Override
+    @Transactional
+    public Customer createCustomerForUser(User user) {
+        Customer customer = new Customer();
+        customer.setUser(user);
+        customer.setFullName(user.getFullName());
+        customer.setEmail(user.getEmail());
+        customer.setPhone(user.getPhone());
+        customer.setTotalPurchase(BigDecimal.ZERO);
+
+        CustomerTier defaultTier = customerTierRepository.findByNameAndIsDeletedFalse("Bronze")
+                .orElse(null);
+        customer.setTier(defaultTier);
+
+        Customer savedCustomer = customerRepository.save(customer);
+
+        LoyaltyPoint loyaltyPoint = new LoyaltyPoint();
+        loyaltyPoint.setCustomer(savedCustomer);
+        loyaltyPoint.setTotalPoints(0);
+        loyaltyPoint.setPointsAvailable(0);
+        loyaltyPoint.setPointsUsed(0);
+        loyaltyPoint.setPointRate(BigDecimal.ZERO);
+        loyaltyPointRepository.save(loyaltyPoint);
+
+        return savedCustomer;
+    }
+
     private CustomerResponse mapToResponse(Customer customer) {
         CustomerResponse response = CustomerResponse.builder()
                 .id(customer.getId())

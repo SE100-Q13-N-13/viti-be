@@ -7,7 +7,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,7 +46,8 @@ public class Order extends BaseEntity {
     private List<OrderPromotion> appliedPromotions;
 
     @Column(name = "loyalty_points_used")
-    private Integer loyaltyPointsUsed;
+    @Builder.Default
+    private Integer loyaltyPointsUsed = 0;
 
     // ==========================================
     // KHU VỰC TÀI CHÍNH (Dùng BigDecimal)

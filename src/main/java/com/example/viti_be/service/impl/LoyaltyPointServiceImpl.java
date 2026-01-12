@@ -96,23 +96,23 @@ public class LoyaltyPointServiceImpl implements LoyaltyPointService {
 
     @Override
     @Transactional
-    public void earnPointsFromOrder(Order order, UUID employeeId) {
+    public Integer earnPointsFromOrder(Order order, UUID employeeId) {
         // 1. Validate
         if (!getConfigBoolean(EARN_ENABLED, true)) {
             log.info("Loyalty earning is disabled");
-            return;
+            return 0;
         }
 
         if (transactionRepository.existsByOrderIdAndTransactionTypeAndIsDeletedFalse(
                 order.getId(), TransactionType.EARN)) {
             log.warn("Order {} already earned points", order.getId());
-            return;
+            return 0;
         }
 
         BigDecimal minOrderAmount = getConfigBigDecimal(MIN_ORDER_TO_EARN, BigDecimal.ZERO);
         if (order.getSubtotal() == null || order.getSubtotal().compareTo(minOrderAmount) < 0) {
             log.info("Order amount {} below minimum {}", order.getSubtotal(), minOrderAmount);
-            return;
+            return 0;
         }
 
         // 2. Calculate earn points
@@ -131,7 +131,7 @@ public class LoyaltyPointServiceImpl implements LoyaltyPointService {
 
         if (pointsEarned <= 0) {
             log.info("No points to earn for order {}", order.getId());
-            return;
+            return pointsEarned;
         }
 
         // 3. Get or create loyalty point
@@ -167,6 +167,7 @@ public class LoyaltyPointServiceImpl implements LoyaltyPointService {
 
         log.info("Customer {} earned {} points from order {}",
                 order.getCustomer().getId(), pointsEarned, order.getId());
+        return pointsEarned;
     }
 
     @Override

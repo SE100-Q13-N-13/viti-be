@@ -1,6 +1,7 @@
 package com.example.viti_be.service.impl;
 
-import com.example.viti_be.dto.mapper.OrderMapper;
+import com.example.viti_be.dto.response.LoyaltyConfigResponse;
+import com.example.viti_be.mapper.OrderMapper;
 import com.example.viti_be.dto.request.CreateOrderRequest;
 import com.example.viti_be.dto.request.OrderItemRequest;
 import com.example.viti_be.dto.response.OrderResponse;
@@ -90,10 +91,11 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse updateOrderStatus(UUID orderId, OrderStatus newStatus, String reason, UUID actorId) {
         Order order = repo.findById(orderId).
-                orElseThrow(() -> new RuntimeException("Can not find order with id: " + orderId.toString()));
+                orElseThrow(() -> new RuntimeException("Can not find order with id: " + orderId));
         OrderStatus oldStatus = order.getStatus();
 
         validateStatusTransition(oldStatus, newStatus);
+        Integer pointsEarned = null;
 
         switch (newStatus) {
             case CONFIRMED:
@@ -102,7 +104,7 @@ public class OrderServiceImpl implements OrderService {
                 if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
                     deductLoyaltyPoints(order, actorId);
                 }
-                loyaltyPointService.earnPointsFromOrder(order, actorId);
+                pointsEarned = loyaltyPointService.earnPointsFromOrder(order, actorId);
                 break;
 
             case COMPLETED:
@@ -113,7 +115,7 @@ public class OrderServiceImpl implements OrderService {
                     if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
                         deductLoyaltyPoints(order, actorId);
                     }
-                    loyaltyPointService.earnPointsFromOrder(order, actorId);
+                    pointsEarned = loyaltyPointService.earnPointsFromOrder(order, actorId);
                 }
 
                 // Set warranty expiration date
@@ -145,7 +147,7 @@ public class OrderServiceImpl implements OrderService {
                     orderId.toString(), "order", oldStatus.toString(), newStatus.toString(), reason);
         }
 
-        return OrderMapper.mapToOrderResponse(savedOrder);
+        return OrderMapper.mapToOrderResponse(savedOrder, pointsEarned);
     }
 
     @Override
@@ -244,28 +246,32 @@ public class OrderServiceImpl implements OrderService {
         order.setSubtotal(subtotal);
 
         // 2. Tính Discount khác (Voucher, Promotion, Rank, Point)
-        // Hiện tại tạm để 0, logic Promotion sẽ update vào đây
         BigDecimal totalSystemDiscount = BigDecimal.ZERO;
 
-        // ... Apply Promotion logic here ...
         BigDecimal pointsDiscount = BigDecimal.ZERO;
         BigDecimal promotionDiscount = BigDecimal.ZERO;
 
         if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
-            // Validate TRƯỚC khi tính toán
+            // Lấy config hiện tại để lưu snapshot
+            LoyaltyConfigResponse loyaltyConfig = loyaltyPointService.getLoyaltyConfig();
+            BigDecimal currentPointRate = new BigDecimal(loyaltyConfig.getRedeemRate());
+
+            // Validate và tính toán
             loyaltyPointService.validateRedemption(
                     request.getCustomerId(),
                     request.getLoyaltyPointsToUse(),
-                    subtotal.subtract(promotionDiscount) // Validate trên giá sau promotion, trước dùng điểm
+                    subtotal.subtract(promotionDiscount)
             );
 
-            // Tính số tiền được giảm từ điểm
             pointsDiscount = loyaltyPointService.calculateRedemptionAmount(
                     request.getLoyaltyPointsToUse()
             );
 
             order.setLoyaltyPointsUsed(request.getLoyaltyPointsToUse());
             order.setPointDiscountAmount(pointsDiscount);
+
+            // Lưu tỷ lệ quy đổi tại thời điểm mua
+            order.setPointRateSnapshot(currentPointRate);
         }
 
         BigDecimal tierDiscount = BigDecimal.ZERO;

@@ -4,6 +4,7 @@ import com.example.viti_be.model.*;
 import com.example.viti_be.model.composite_key.UserRoleId;
 import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.repository.*;
+import com.example.viti_be.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -35,6 +36,9 @@ public class DataInitializer implements CommandLineRunner {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private CustomerService customerService;
 
     @Override
     public void run(String... args) {
@@ -196,24 +200,7 @@ public class DataInitializer implements CommandLineRunner {
         // Create User first
         User user = createUser(fullName, email, phone, password, gender, dob, UserStatus.ACTIVE, customerRole);
 
-        // Create Customer
-        Customer customer = new Customer();
-        customer.setFullName(fullName);
-        customer.setPhone(phone);
-        customer.setEmail(email);
-        customer.setTier(tier);
-        customer.setTotalPurchase(BigDecimal.valueOf(totalSpending));
-
-        Customer savedCustomer = customerRepository.save(customer);
-
-        // Create LoyaltyPoint wallet
-        LoyaltyPoint loyaltyPoint = new LoyaltyPoint();
-        loyaltyPoint.setCustomer(savedCustomer);
-        loyaltyPoint.setTotalPoints(0);
-        loyaltyPoint.setPointsAvailable(0);
-        loyaltyPoint.setPointsUsed(0);
-
-        loyaltyPointRepository.save(loyaltyPoint);
+        customerService.createCustomerForUser(user);
 
         log.info("Created customer: {} with tier: {} and {} spending", fullName, tier.getName(), totalSpending);
     }

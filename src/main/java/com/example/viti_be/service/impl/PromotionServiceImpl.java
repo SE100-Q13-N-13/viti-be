@@ -749,9 +749,7 @@ public class PromotionServiceImpl implements PromotionService {
                     if (customerId != null && p.getUsagePerCustomer() != null) {
                         long usage = usageHistoryRepository.countByPromotionIdAndCustomerId(
                                 p.getId(), customerId);
-                        if (usage >= p.getUsagePerCustomer()) {
-                            return false;
-                        }
+                        return usage < p.getUsagePerCustomer();
                     }
                     return true;
                 })
@@ -783,9 +781,7 @@ public class PromotionServiceImpl implements PromotionService {
                     if (customerId != null && p.getUsagePerCustomer() != null) {
                         long usage = usageHistoryRepository.countByPromotionIdAndCustomerId(
                                 p.getId(), customerId);
-                        if (usage >= p.getUsagePerCustomer()) {
-                            return false;
-                        }
+                        return usage < p.getUsagePerCustomer();
                     }
                     return true;
                 })

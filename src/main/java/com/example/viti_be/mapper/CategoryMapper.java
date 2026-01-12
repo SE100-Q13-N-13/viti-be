@@ -31,22 +31,9 @@ public abstract class CategoryMapper {
 
     // --- MAPPING CATEGORY SPEC ---
 
-    @Mapping(target = "options", source = "options", qualifiedByName = "jsonOptionsToList")
     public abstract CategorySpecResponse toSpecResponse(CategorySpec spec);
 
     public abstract List<CategorySpecResponse> toSpecResponseList(List<CategorySpec> specs);
-
-    // --- HELPER METHODS ĐỂ PARSE JSON STRING ---
-
-    @Named("jsonOptionsToList")
-    List<String> mapJsonOptions(String json) {
-        if (json == null || json.isEmpty()) return Collections.emptyList();
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
-        } catch (JsonProcessingException e) {
-            return Collections.emptyList(); // Hoặc throw exception tùy logic
-        }
-    }
 
     @Named("jsonIdsToList")
     List<UUID> mapJsonIds(String json) {

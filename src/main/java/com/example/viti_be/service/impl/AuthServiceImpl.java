@@ -7,25 +7,22 @@ import com.example.viti_be.dto.response.JwtResponse;
 import com.example.viti_be.exception.AuthenticationException;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
-import com.example.viti_be.model.RefreshToken;
-import com.example.viti_be.model.Role;
-import com.example.viti_be.model.User;
-import com.example.viti_be.model.UserRole;
+import com.example.viti_be.model.*;
 import com.example.viti_be.model.model_enum.AuditAction;
 import com.example.viti_be.model.model_enum.AuditModule;
 import com.example.viti_be.model.model_enum.UserStatus;
+import com.example.viti_be.repository.CustomerRepository;
 import com.example.viti_be.repository.RoleRepository;
 import com.example.viti_be.repository.UserRepository;
 import com.example.viti_be.security.jwt.JwtUtils;
 import com.example.viti_be.security.services.UserDetailsImpl;
-import com.example.viti_be.service.AuditLogService;
-import com.example.viti_be.service.AuthService;
-import com.example.viti_be.service.EmailService;
-import com.example.viti_be.service.RefreshTokenService;
+import com.example.viti_be.service.*;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -37,12 +34,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     @Autowired AuthenticationManager authenticationManager;
@@ -53,6 +49,10 @@ public class AuthServiceImpl implements AuthService {
     @Autowired EmailService emailService;
     @Autowired RefreshTokenService refreshTokenService;
     @Autowired AuditLogService auditLogService;
+    @Autowired CustomerService customerService;
+
+    @Autowired
+    private CustomerRepository customerRepository;
 
     @Value("${viti.app.googleClientId}")
     String googleClientId;
@@ -101,7 +101,10 @@ public class AuthServiceImpl implements AuthService {
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        String temporaryPassword = request.getPassword();
+        user.setPassword(passwordEncoder.encode(temporaryPassword));
+
         user.setFullName(request.getFullName());
         user.setPhone(request.getPhone());
         user.setStatus(UserStatus.ACTIVE);
@@ -118,6 +121,19 @@ public class AuthServiceImpl implements AuthService {
         user.getUserRoles().add(userRole);
 
         User savedUser = userRepository.save(user);
+        new Thread(() -> {
+            try {
+                emailService.sendEmployeeCredentials(
+                        savedUser.getEmail(),
+                        savedUser.getUsername(),
+                        temporaryPassword,
+                        savedUser.getFullName()
+                );
+                log.info("Sent credentials email to new employee: {}", savedUser.getEmail());
+            } catch (Exception e) {
+                log.error("Failed to send credentials email to {}: {}", savedUser.getEmail(), e.getMessage());
+            }
+        }).start();
         auditLogService.logSuccess(
                 getCurrentUserId(),
                 AuditModule.STAFF,
@@ -189,6 +205,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void registerUser(SignupRequest signUpRequest) {
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             throw new BadRequestException("Error: Username is already taken!");
@@ -221,7 +238,54 @@ public class AuthServiceImpl implements AuthService {
         user.setVerificationCode(otp);
         user.setVerificationExpiration(LocalDateTime.now().plusMinutes(15));
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        // 1. TÌM KIẾM ỨNG VIÊN (CANDIDATES)
+        Set<Customer> foundCustomers = new HashSet<>();
+
+        // Check Phone (nếu có)
+        if (signUpRequest.getPhone() != null && !signUpRequest.getPhone().isBlank()) {
+            customerRepository.findByPhone(signUpRequest.getPhone())
+                    .ifPresent(foundCustomers::add);
+        }
+
+        // Check Email (nếu có)
+        if (signUpRequest.getEmail() != null && !signUpRequest.getEmail().isBlank()) {
+            customerRepository.findByEmail(signUpRequest.getEmail())
+                    .ifPresent(foundCustomers::add);
+        }
+
+        // 2. XỬ LÝ KẾT QUẢ
+        if (foundCustomers.isEmpty()) {
+            // CASE A: KHÔNG TÌM THẤY AI -> TẠO MỚI HOÀN TOÀN
+            customerService.createCustomerForUser(savedUser);
+
+        } else if (foundCustomers.size() == 1) {
+            // CASE B: TÌM THẤY ĐÚNG 1 NGƯỜI (Match Phone, hoặc Match Email, hoặc Match cả 2 cùng 1 người)
+            // -> TIẾN HÀNH LIÊN KẾT (LINKING)
+            Customer existingCustomer = foundCustomers.iterator().next();
+
+            // Validate: Khách này đã có User khác chưa?
+            if (existingCustomer.getUser() != null) {
+                throw new BadRequestException("Thông tin khách hàng này đã được liên kết với tài khoản khác.");
+            }
+
+            // Link User vào Customer
+            existingCustomer.setUser(savedUser);
+
+            // Cập nhật thông tin mới nhất (Ưu tiên thông tin từ User vừa đăng ký)
+            existingCustomer.setFullName(savedUser.getFullName());
+            if (savedUser.getPhone() != null) existingCustomer.setPhone(savedUser.getPhone());
+            if (savedUser.getEmail() != null) existingCustomer.setEmail(savedUser.getEmail());
+
+            customerRepository.save(existingCustomer);
+
+        } else {
+            // CASE C: CONFLICT (TÌM THẤY > 1 NGƯỜI)
+            // Ví dụ: Phone khớp Ông A, nhưng Email khớp Bà B.
+            // Hệ thống không biết nên link vào ông A hay bà B.
+            throw new BadRequestException(
+                    "Dữ liệu mâu thuẫn: Số điện thoại và Email thuộc về 2 khách hàng khác nhau. Vui lòng liên hệ CSKH.");
+        }
 
         new Thread(() -> emailService.sendOtpEmail(user.getEmail(), otp)).start();
     }

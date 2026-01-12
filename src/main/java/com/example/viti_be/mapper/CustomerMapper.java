@@ -1,4 +1,4 @@
-package com.example.viti_be.dto.mapper;
+package com.example.viti_be.mapper;
 
 import com.example.viti_be.dto.response.CustomerResponse;
 import com.example.viti_be.model.Customer;

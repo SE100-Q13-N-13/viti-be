@@ -1,10 +1,8 @@
-package com.example.viti_be.dto.mapper;
+package com.example.viti_be.mapper;
 
 import com.example.viti_be.dto.response.OrderItemResponse;
 import com.example.viti_be.model.OrderItem;
 import com.example.viti_be.model.ProductVariant;
-
-import java.util.function.Function;
 
 public class OrderItemMapper {
     public static OrderItemResponse mapToOrderItemResponse(OrderItem item) {

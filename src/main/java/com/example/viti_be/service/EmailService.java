@@ -25,4 +25,30 @@ public class EmailService {
         message.setText(content);
         mailSender.send(message);
     }
+
+    /**
+     * Gửi email thông báo tài khoản mới cho employee
+     */
+    public void sendEmployeeCredentials(String toEmail, String username, String temporaryPassword, String fullName) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(toEmail);
+        message.setSubject("Viti Shop - Your Employee Account");
+        message.setText(String.format(
+                "Dear %s,\n\n" +
+                        "An admin has created an account for you in Viti Shop system.\n\n" +
+                        "Your login credentials:\n" +
+                        "Email: %s\n" +
+                        "Username: %s\n" +
+                        "Temporary Password: %s\n\n" +
+                        "⚠️ IMPORTANT: You must change your password after first login for security.\n\n" +
+                        "Login here: [YOUR_FRONTEND_URL]/login\n\n" +
+                        "Best regards,\n" +
+                        "Viti Shop Team",
+                fullName,
+                toEmail,
+                username,
+                temporaryPassword
+        ));
+        mailSender.send(message);
+    }
 }

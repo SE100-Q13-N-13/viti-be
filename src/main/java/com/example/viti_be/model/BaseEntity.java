@@ -26,4 +26,16 @@ public abstract class BaseEntity {
 
     @Column(name = "is_deleted")
     private Boolean isDeleted = false;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Customer)) return false;
+        return id != null && id.equals(((Customer) o).getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

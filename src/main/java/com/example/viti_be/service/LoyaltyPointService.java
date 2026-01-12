@@ -37,7 +37,7 @@ public interface LoyaltyPointService {
      * Tích điểm khi confirm order
      * Được gọi từ OrderService.confirmOrder()
      */
-    void earnPointsFromOrder(Order order, UUID employeeId);
+    Integer earnPointsFromOrder(Order order, UUID employeeId);
 
     /**
      * Validate xem có thể dùng X điểm cho đơn hàng không
