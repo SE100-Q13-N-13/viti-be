@@ -9,10 +9,16 @@ public class PasswordRequest {
     }
 
     @Data
-    public static class VerifyOtpRequest {
+    public static class ResetPasswordRequest {
         private String email;
         private String otp;
         private String newPassword;
+    }
+
+    @Data
+    public static class VerifySignupRequest {
+        private String email;
+        private String otp;
     }
 
     @Data

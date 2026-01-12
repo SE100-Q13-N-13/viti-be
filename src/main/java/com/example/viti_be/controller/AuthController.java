@@ -1,15 +1,20 @@
 package com.example.viti_be.controller;
 
-import com.example.viti_be.dto.request.LoginRequest;
-import com.example.viti_be.dto.request.PasswordRequest;
-import com.example.viti_be.dto.request.SignupRequest;
-import com.example.viti_be.dto.request.TokenRefreshRequest;
+import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.ApiResponse;
+import com.example.viti_be.dto.response.GoogleLoginResponse;
 import com.example.viti_be.dto.response.JwtResponse;
+import com.example.viti_be.dto.response.UserProviderDTO;
+import com.example.viti_be.exception.BadRequestException;
+import com.example.viti_be.exception.ResourceNotFoundException;
+import com.example.viti_be.model.User;
+import com.example.viti_be.repository.UserRepository;
 import com.example.viti_be.security.jwt.JwtUtils;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.AuthService;
 import com.example.viti_be.service.RefreshTokenService;
+import com.example.viti_be.service.UserProviderService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +24,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -33,6 +40,12 @@ public class AuthController {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired
+    private UserProviderService userProviderService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<JwtResponse>> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
@@ -63,7 +76,7 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<Object>> resetPassword(@RequestBody PasswordRequest.VerifyOtpRequest request) {
+    public ResponseEntity<ApiResponse<Object>> resetPassword(@RequestBody PasswordRequest.ResetPasswordRequest request) {
         try {
             authService.resetPasswordWithOtp(request.getEmail(), request.getOtp(), request.getNewPassword());
             return ResponseEntity.ok(ApiResponse.success(null, "Password reset successfully."));
@@ -91,9 +104,9 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public ResponseEntity<ApiResponse<JwtResponse>> googleLogin(@RequestBody GoogleLoginRequest request) {
+    public ResponseEntity<ApiResponse<GoogleLoginResponse>> googleLogin(@RequestBody GoogleLoginRequest request) {
         try {
-            JwtResponse jwt = authService.loginWithGoogle(request.getIdToken());
+            GoogleLoginResponse jwt = authService.loginWithGoogle(request.getIdToken());
             return ResponseEntity.ok(ApiResponse.success(jwt, "Google login successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest()
@@ -101,8 +114,65 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/create-password")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(description = "Create password for Google-only user")
+    public ResponseEntity<ApiResponse<Object>> createPassword(
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            @Valid @RequestBody CreatePasswordRequest request) {
+
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
+            throw new BadRequestException("Password confirmation does not match");
+        }
+
+        userProviderService.createPasswordForGoogleUser(userDetails.getId(), request.getPassword());
+        return ResponseEntity.ok(ApiResponse.success(null,
+                "Password created successfully. You can now login with email/password."));
+    }
+
+    @PostMapping("/link-google")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(description = "Link Google account for user")
+    public ResponseEntity<ApiResponse<Object>> linkGoogleAccount(
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            @Valid @RequestBody LinkGoogleAccountRequest request) {
+        try {
+            userProviderService.linkGoogleAccount(userDetails.getId(), request.getIdToken());
+            return ResponseEntity.ok(ApiResponse.success(null, "Google account linked successfully"));
+        } catch (Exception e) {
+            throw new BadRequestException("Failed to link Google account: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/skip-linking")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(description = "Mark that user skipped linking prompt")
+    public ResponseEntity<ApiResponse<Object>> skipLinking(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        userProviderService.markLinkingSkipped(userDetails.getId());
+
+        // Update isFirstLogin = false
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setIsFirstLogin(false);
+        userRepository.save(user);
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Linking prompt will not be shown again"));
+    }
+
+    @GetMapping("/providers")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(description = "Get providers list for user")
+    public ResponseEntity<ApiResponse<List<UserProviderDTO>>> getUserProviders(
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+
+        List<UserProviderDTO> providers = userProviderService.getUserProviders(userDetails.getId());
+        return ResponseEntity.ok(ApiResponse.success(providers, "Providers retrieved successfully"));
+    }
+
     @PostMapping("/verify-signup")
-    public ResponseEntity<ApiResponse<Object>> verifySignup(@RequestBody PasswordRequest.VerifyOtpRequest request) {
+    public ResponseEntity<ApiResponse<Object>> verifySignup(@RequestBody PasswordRequest.VerifySignupRequest request) {
         try {
             authService.verifyUser(request.getEmail(), request.getOtp());
             return ResponseEntity.ok(ApiResponse.success(null, "Account verified successfully!"));

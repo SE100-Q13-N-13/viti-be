@@ -3,6 +3,7 @@ package com.example.viti_be.service.impl;
 import com.example.viti_be.dto.request.CreateEmployeeRequest;
 import com.example.viti_be.dto.request.LoginRequest;
 import com.example.viti_be.dto.request.SignupRequest;
+import com.example.viti_be.dto.response.GoogleLoginResponse;
 import com.example.viti_be.dto.response.JwtResponse;
 import com.example.viti_be.exception.AuthenticationException;
 import com.example.viti_be.exception.BadRequestException;
@@ -10,9 +11,11 @@ import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
 import com.example.viti_be.model.model_enum.AuditAction;
 import com.example.viti_be.model.model_enum.AuditModule;
+import com.example.viti_be.model.model_enum.AuthProvider;
 import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.repository.CustomerRepository;
 import com.example.viti_be.repository.RoleRepository;
+import com.example.viti_be.repository.UserProviderRepository;
 import com.example.viti_be.repository.UserRepository;
 import com.example.viti_be.security.jwt.JwtUtils;
 import com.example.viti_be.security.services.UserDetailsImpl;
@@ -22,6 +25,9 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import jakarta.transaction.Transactional;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +59,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private UserProviderService userProviderService;
+
+    @Autowired
+    private UserProviderRepository userProviderRepository;
 
     @Value("${viti.app.googleClientId}")
     String googleClientId;
@@ -121,6 +133,7 @@ public class AuthServiceImpl implements AuthService {
         user.getUserRoles().add(userRole);
 
         User savedUser = userRepository.save(user);
+        userProviderService.addProvider(savedUser, AuthProvider.EMAIL, null, true);
         new Thread(() -> {
             try {
                 emailService.sendEmployeeCredentials(
@@ -193,7 +206,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void changePassword(String username, String oldPassword, String newPassword) {
         User user = userRepository.findByEmail(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
             throw new BadRequestException("Old password is incorrect");
@@ -239,53 +252,10 @@ public class AuthServiceImpl implements AuthService {
         user.setVerificationExpiration(LocalDateTime.now().plusMinutes(15));
 
         User savedUser = userRepository.save(user);
-        // 1. TÌM KIẾM ỨNG VIÊN (CANDIDATES)
-        Set<Customer> foundCustomers = new HashSet<>();
 
-        // Check Phone (nếu có)
-        if (signUpRequest.getPhone() != null && !signUpRequest.getPhone().isBlank()) {
-            customerRepository.findByPhone(signUpRequest.getPhone())
-                    .ifPresent(foundCustomers::add);
-        }
+        linkOrCreateCustomer(savedUser, signUpRequest.getPhone(), signUpRequest.getEmail());
 
-        // Check Email (nếu có)
-        if (signUpRequest.getEmail() != null && !signUpRequest.getEmail().isBlank()) {
-            customerRepository.findByEmail(signUpRequest.getEmail())
-                    .ifPresent(foundCustomers::add);
-        }
-
-        // 2. XỬ LÝ KẾT QUẢ
-        if (foundCustomers.isEmpty()) {
-            // CASE A: KHÔNG TÌM THẤY AI -> TẠO MỚI HOÀN TOÀN
-            customerService.createCustomerForUser(savedUser);
-
-        } else if (foundCustomers.size() == 1) {
-            // CASE B: TÌM THẤY ĐÚNG 1 NGƯỜI (Match Phone, hoặc Match Email, hoặc Match cả 2 cùng 1 người)
-            // -> TIẾN HÀNH LIÊN KẾT (LINKING)
-            Customer existingCustomer = foundCustomers.iterator().next();
-
-            // Validate: Khách này đã có User khác chưa?
-            if (existingCustomer.getUser() != null) {
-                throw new BadRequestException("Thông tin khách hàng này đã được liên kết với tài khoản khác.");
-            }
-
-            // Link User vào Customer
-            existingCustomer.setUser(savedUser);
-
-            // Cập nhật thông tin mới nhất (Ưu tiên thông tin từ User vừa đăng ký)
-            existingCustomer.setFullName(savedUser.getFullName());
-            if (savedUser.getPhone() != null) existingCustomer.setPhone(savedUser.getPhone());
-            if (savedUser.getEmail() != null) existingCustomer.setEmail(savedUser.getEmail());
-
-            customerRepository.save(existingCustomer);
-
-        } else {
-            // CASE C: CONFLICT (TÌM THẤY > 1 NGƯỜI)
-            // Ví dụ: Phone khớp Ông A, nhưng Email khớp Bà B.
-            // Hệ thống không biết nên link vào ông A hay bà B.
-            throw new BadRequestException(
-                    "Dữ liệu mâu thuẫn: Số điện thoại và Email thuộc về 2 khách hàng khác nhau. Vui lòng liên hệ CSKH.");
-        }
+        userProviderService.addProvider(savedUser, AuthProvider.EMAIL, null, true);
 
         new Thread(() -> emailService.sendOtpEmail(user.getEmail(), otp)).start();
     }
@@ -311,61 +281,99 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public JwtResponse loginWithGoogle(String idTokenString) throws Exception {
-        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+    @Transactional
+    public GoogleLoginResponse loginWithGoogle(String idTokenString) throws Exception {
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(), new GsonFactory())
                 .setAudience(Collections.singletonList(googleClientId))
                 .build();
 
         GoogleIdToken idToken = verifier.verify(idTokenString);
-        if (idToken != null) {
-            GoogleIdToken.Payload payload = idToken.getPayload();
-            String email = payload.getEmail();
-            String name = (String) payload.get("name");
-            Boolean emailVerified = payload.getEmailVerified();
-
-            if (emailVerified == null || !emailVerified) {
-                throw new BadRequestException("Google email is not verified");
-            }
-
-            User user = userRepository.findByEmail(email).orElseGet(() -> {
-                User newUser = new User();
-                newUser.setEmail(email);
-                newUser.setUsername(email);
-                newUser.setFullName(name);
-                newUser.setPassword(passwordEncoder.encode("GOOGLE_AUTH_PLACEHOLDER"));
-                newUser.setStatus(UserStatus.ACTIVE);
-                newUser.setIsActive(true);
-                newUser.setIsFirstLogin(true);
-
-                Role role = roleRepository.findByName("ROLE_CUSTOMER")
-                        .orElseThrow(() -> new ResourceNotFoundException("Error: Role 'ROLE_CUSTOMER' is not found. Please contact admin to seed data."));
-
-                UserRole ur = new UserRole();
-                ur.setUser(newUser);
-                ur.setRole(role);
-                newUser.getUserRoles().add(ur);
-                return userRepository.save(newUser);
-            });
-
-            Authentication authentication = new UsernamePasswordAuthenticationToken(
-                    UserDetailsImpl.build(user), null, UserDetailsImpl.build(user).getAuthorities());
-
-            String jwt = jwtUtils.generateJwtToken(authentication);
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
-            List<String> roles = user.getRoleNames().stream().toList();
-
-            return new JwtResponse(
-                    jwt,
-                    refreshToken.getToken(),
-                    user.getId(),
-                    user.getUsername(),
-                    user.getEmail(),
-                    roles,
-                    user.getIsFirstLogin()
-            );
-        } else {
-            throw new AuthenticationException("Invalid ID token.");
+        if (idToken == null) {
+            throw new AuthenticationException("Invalid Google ID token");
         }
+
+        GoogleIdToken.Payload payload = idToken.getPayload();
+        String googleSub = payload.getSubject(); // Google's unique user ID
+        String email = payload.getEmail();
+        String name = (String) payload.get("name");
+        Boolean emailVerified = payload.getEmailVerified();
+
+        if (emailVerified == null || !emailVerified) {
+            throw new BadRequestException("Google email is not verified");
+        }
+
+        User user = userProviderRepository
+                .findByProviderAndProviderId(AuthProvider.GOOGLE, googleSub)
+                .map(UserProvider::getUser)
+                .orElseGet(() -> {
+                    // Không tìm thấy qua Google → tìm theo email
+                    return userRepository.findByEmail(email).orElseGet(() -> {
+                        // ⭐ TẠO USER MỚI
+                        User newUser = new User();
+                        newUser.setEmail(email);
+                        newUser.setUsername(email);
+                        newUser.setFullName(name);
+                        newUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString())); // Random password
+                        newUser.setStatus(UserStatus.ACTIVE);
+                        newUser.setIsActive(true);
+                        newUser.setIsFirstLogin(true);
+
+                        Role role = roleRepository.findByName("ROLE_CUSTOMER")
+                                .orElseThrow(() -> new ResourceNotFoundException("Role 'ROLE_CUSTOMER' not found"));
+
+                        UserRole ur = new UserRole();
+                        ur.setUser(newUser);
+                        ur.setRole(role);
+                        newUser.getUserRoles().add(ur);
+
+                        User savedUser = userRepository.save(newUser);
+
+                        userProviderService.addProvider(savedUser, AuthProvider.GOOGLE, googleSub, true);
+
+                        try {
+                            linkOrCreateCustomer(savedUser, null, email);
+                        } catch (BadRequestException e) {
+                            log.warn("Could not auto-link customer for Google user: {}", e.getMessage());
+                        }
+
+                        log.info("Created new user from Google login: {}", email);
+                        return savedUser;
+                    });
+                });
+
+        // ⭐ NẾU USER ĐÃ TỒN TẠI NHƯNG CHƯA LINK GOOGLE → AUTO LINK
+        if (!userProviderService.hasProvider(user, AuthProvider.GOOGLE)) {
+            userProviderService.addProvider(user, AuthProvider.GOOGLE, googleSub,
+                    !userProviderService.hasProvider(user, AuthProvider.EMAIL)); // Primary nếu chưa có EMAIL
+            log.info("Linked Google account to existing user: {}", email);
+        }
+
+        // Generate tokens
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                UserDetailsImpl.build(user), null, UserDetailsImpl.build(user).getAuthorities());
+
+        String jwt = jwtUtils.generateJwtToken(authentication);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
+        List<String> roles = user.getRoleNames().stream().toList();
+
+        boolean hasEmailProvider = userProviderService.hasProvider(user, AuthProvider.EMAIL);
+        boolean shouldPromptLinking = user.getIsFirstLogin() && !hasEmailProvider;
+        String linkingStatus = hasEmailProvider ? "LINKED" :
+                (user.getIsFirstLogin() ? "NOT_LINKED" : "SKIPPED");
+
+        return GoogleLoginResponse.builder()
+                .accessToken(jwt)
+                .refreshToken(refreshToken.getToken())
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .roles(roles)
+                .isFirstLogin(user.getIsFirstLogin())
+                .hasEmailProvider(hasEmailProvider)
+                .shouldPromptLinking(shouldPromptLinking)
+                .linkingStatus(linkingStatus)
+                .build();
     }
 
     @Override
@@ -389,5 +397,47 @@ public class AuthServiceImpl implements AuthService {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         return userDetails.getId();
+    }
+
+
+    private void linkOrCreateCustomer(User user, String phone, String email) {
+        Set<Customer> foundCustomers = new HashSet<>();
+
+        // Find by phone
+        if (phone != null && !phone.isBlank()) {
+            customerRepository.findByPhone(phone).ifPresent(foundCustomers::add);
+        }
+
+        // Find by email
+        if (email != null && !email.isBlank()) {
+            customerRepository.findByEmail(email).ifPresent(foundCustomers::add);
+        }
+
+        if (foundCustomers.isEmpty()) {
+            // Case A: Không tìm thấy → Tạo mới
+            customerService.createCustomerForUser(user);
+            log.info("Created new customer for user: {}", user.getEmail());
+
+        } else if (foundCustomers.size() == 1) {
+            // Case B: Tìm thấy đúng 1 → Link
+            Customer existingCustomer = foundCustomers.iterator().next();
+
+            if (existingCustomer.getUser() != null) {
+                throw new BadRequestException("This customer record is already linked to another account");
+            }
+
+            existingCustomer.setUser(user);
+            existingCustomer.setFullName(user.getFullName());
+            if (user.getPhone() != null) existingCustomer.setPhone(user.getPhone());
+            if (user.getEmail() != null) existingCustomer.setEmail(user.getEmail());
+
+            customerRepository.save(existingCustomer);
+            log.info("Linked existing customer to user: {}", user.getEmail());
+
+        } else {
+            // Case C: Conflict (>1 customer)
+            throw new BadRequestException(
+                    "Data conflict: Phone and email belong to different customer records. Please contact support.");
+        }
     }
 }
