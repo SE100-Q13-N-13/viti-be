@@ -1,0 +1,14 @@
+package com.example.viti_be.repository;
+
+import com.example.viti_be.model.OrderItemPromotion;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.UUID;
+
+@Repository
+public interface OrderItemPromotionRepository extends JpaRepository<OrderItemPromotion, UUID> {
+    List<OrderItemPromotion> findByOrderItemId(UUID orderItemId);
+    void deleteByOrderItemId(UUID orderItemId);
+}

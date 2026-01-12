@@ -10,7 +10,7 @@ import java.util.UUID;
 @Data
 @Builder
 public class OrderItemResponse {
-    private Long id;
+    private UUID id;
 
     private UUID productVariantId;
     private String sku;
