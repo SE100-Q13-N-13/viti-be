@@ -107,13 +107,7 @@ public class CategoryServiceImpl implements CategoryService {
         spec.setSpecName(request.getSpecName());
         spec.setIsRequired(request.getIsRequired());
         spec.setDataType(request.getDataType());
-        if (request.getOptions() != null) {
-            try {
-                spec.setOptions(objectMapper.writeValueAsString(request.getOptions()));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException("Error parsing options");
-            }
-        }
+        spec.setOptions(request.getOptions());
         return categorySpecRepository.save(spec);
     }
 

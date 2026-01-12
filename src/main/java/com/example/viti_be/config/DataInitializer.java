@@ -2,7 +2,9 @@ package com.example.viti_be.config;
 
 import com.example.viti_be.model.*;
 import com.example.viti_be.model.composite_key.UserRoleId;
+import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.repository.*;
+import com.example.viti_be.service.CustomerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -12,7 +14,6 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Set;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -35,6 +36,9 @@ public class DataInitializer implements CommandLineRunner {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private CustomerService customerService;
 
     @Override
     public void run(String... args) {
@@ -66,7 +70,7 @@ public class DataInitializer implements CommandLineRunner {
                     "Admin123!",
                     "MALE",
                     LocalDate.of(1985, 1, 1),
-                    "ACTIVE",
+                    UserStatus.ACTIVE,
                     adminRole
             );
 
@@ -78,7 +82,7 @@ public class DataInitializer implements CommandLineRunner {
                     "Employee123!",
                     "FEMALE",
                     LocalDate.of(1990, 5, 15),
-                    "ACTIVE",
+                    UserStatus.ACTIVE,
                     employeeRole
             );
 
@@ -165,7 +169,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private User createUser(String fullName, String email, String phone, String password,
-                            String gender, LocalDate dob, String status, Role role) {
+                            String gender, LocalDate dob, UserStatus status, Role role) {
         User user = new User();
         user.setUsername(email);
         user.setFullName(fullName);
@@ -190,32 +194,14 @@ public class DataInitializer implements CommandLineRunner {
         return savedUser;
     }
 
-    private Customer createCustomerUser(String fullName, String email, String phone, String password,
-                                        String gender, LocalDate dob, Role customerRole,
-                                        CustomerTier tier, long totalSpending) {
+    private void createCustomerUser(String fullName, String email, String phone, String password,
+                                    String gender, LocalDate dob, Role customerRole,
+                                    CustomerTier tier, long totalSpending) {
         // Create User first
-        User user = createUser(fullName, email, phone, password, gender, dob, "ACTIVE", customerRole);
+        User user = createUser(fullName, email, phone, password, gender, dob, UserStatus.ACTIVE, customerRole);
 
-        // Create Customer
-        Customer customer = new Customer();
-        customer.setFullName(fullName);
-        customer.setPhone(phone);
-        customer.setEmail(email);
-        customer.setTier(tier);
-        customer.setTotalPurchase(BigDecimal.valueOf(totalSpending));
-
-        Customer savedCustomer = customerRepository.save(customer);
-
-        // Create LoyaltyPoint wallet
-        LoyaltyPoint loyaltyPoint = new LoyaltyPoint();
-        loyaltyPoint.setCustomer(savedCustomer);
-        loyaltyPoint.setTotalPoints(0);
-        loyaltyPoint.setPointsAvailable(0);
-        loyaltyPoint.setPointsUsed(0);
-
-        loyaltyPointRepository.save(loyaltyPoint);
+        customerService.createCustomerForUser(user);
 
         log.info("Created customer: {} with tier: {} and {} spending", fullName, tier.getName(), totalSpending);
-        return savedCustomer;
     }
 }

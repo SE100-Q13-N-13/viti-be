@@ -3,6 +3,9 @@ package com.example.viti_be.controller;
 import com.example.viti_be.dto.request.CategoryRequest;
 import com.example.viti_be.dto.request.CategorySpecRequest;
 import com.example.viti_be.dto.response.ApiResponse;
+import com.example.viti_be.dto.response.CategoryResponse;
+import com.example.viti_be.dto.response.CategorySpecResponse;
+import com.example.viti_be.mapper.CategoryMapper;
 import com.example.viti_be.model.Category;
 import com.example.viti_be.model.CategorySpec;
 import com.example.viti_be.service.CategoryService;
@@ -21,21 +24,29 @@ public class CategoryController {
     @Autowired
     private CategoryService categoryService;
 
+    @Autowired
+    private CategoryMapper categoryMapper;
+
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Category>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.getAllCategories(), "Success"));
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAll() {
+        List<Category> entities = categoryService.getAllCategories();
+        // Convert Entity List -> DTO List
+        List<CategoryResponse> response = categoryMapper.toCategoryResponseList(entities);
+        return ResponseEntity.ok(ApiResponse.success(response, "Success"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<ApiResponse<Category>> create(@RequestBody CategoryRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.createCategory(request), "Created"));
+    public ResponseEntity<ApiResponse<CategoryResponse>> create(@RequestBody CategoryRequest request) {
+        Category entity = categoryService.createCategory(request);
+        return ResponseEntity.ok(ApiResponse.success(categoryMapper.toCategoryResponse(entity), "Created"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Category>> update(@PathVariable UUID id, @RequestBody CategoryRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.updateCategory(id, request), "Updated"));
+    public ResponseEntity<ApiResponse<CategoryResponse>> update(@PathVariable UUID id, @RequestBody CategoryRequest request) {
+        Category entity = categoryService.updateCategory(id, request);
+        return ResponseEntity.ok(ApiResponse.success(categoryMapper.toCategoryResponse(entity), "Updated"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -45,21 +56,26 @@ public class CategoryController {
         return ResponseEntity.ok(ApiResponse.success(null, "Deleted"));
     }
 
+    // --- SPECS ---
+
     @GetMapping("/{id}/specs")
-    public ResponseEntity<ApiResponse<List<CategorySpec>>> getSpecs(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.getSpecsByCategory(id), "Success"));
+    public ResponseEntity<ApiResponse<List<CategorySpecResponse>>> getSpecs(@PathVariable UUID id) {
+        List<CategorySpec> specs = categoryService.getSpecsByCategory(id);
+        return ResponseEntity.ok(ApiResponse.success(categoryMapper.toSpecResponseList(specs), "Success"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/specs")
-    public ResponseEntity<ApiResponse<CategorySpec>> addSpec(@RequestBody CategorySpecRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.addSpecToCategory(request), "Added spec"));
+    public ResponseEntity<ApiResponse<CategorySpecResponse>> addSpec(@RequestBody CategorySpecRequest request) {
+        CategorySpec spec = categoryService.addSpecToCategory(request);
+        return ResponseEntity.ok(ApiResponse.success(categoryMapper.toSpecResponse(spec), "Added spec"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/specs/{specId}")
-    public ResponseEntity<ApiResponse<CategorySpec>> updateSpec(@PathVariable UUID specId, @RequestBody CategorySpecRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.updateSpec(specId, request), "Updated spec"));
+    public ResponseEntity<ApiResponse<CategorySpecResponse>> updateSpec(@PathVariable UUID specId, @RequestBody CategorySpecRequest request) {
+        CategorySpec spec = categoryService.updateSpec(specId, request);
+        return ResponseEntity.ok(ApiResponse.success(categoryMapper.toSpecResponse(spec), "Updated spec"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")

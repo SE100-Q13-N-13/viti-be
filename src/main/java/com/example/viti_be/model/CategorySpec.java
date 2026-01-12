@@ -2,6 +2,10 @@ package com.example.viti_be.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.List;
 
 @Entity
 @Table(name = "category_specs")
@@ -22,11 +26,16 @@ public class CategorySpec extends BaseEntity {
     @Column(name = "is_required")
     private Boolean isRequired = false;
 
+    // False = Thông số chung, True = Thông số riêng
+    @Column(name = "is_variant_spec")
+    private Boolean isVariantSpec = false;
+
     @Column(name = "data_type", length = 20)
     private String dataType; // TEXT, NUMBER, SELECT
 
     // Lưu danh sách options dưới dạng JSON String (VD: ["8GB", "16GB"])
     // Trong DB là kiểu JSONB
     @Column(columnDefinition = "jsonb")
-    private String options;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private List<String> options;
 }

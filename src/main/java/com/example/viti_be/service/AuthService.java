@@ -4,7 +4,8 @@ import com.example.viti_be.dto.request.CreateEmployeeRequest;
 import com.example.viti_be.dto.request.LoginRequest;
 import com.example.viti_be.dto.request.SignupRequest;
 import com.example.viti_be.dto.response.JwtResponse;
-import com.example.viti_be.model.User;
+
+import java.util.UUID;
 
 public interface AuthService {
     JwtResponse authenticateUser(LoginRequest loginRequest);
@@ -15,4 +16,6 @@ public interface AuthService {
     void registerUser(SignupRequest signUpRequest);
     void verifyUser(String email, String otp);
     JwtResponse loginWithGoogle(String idTokenString) throws Exception;
+
+    void logout(UUID userId);
 }

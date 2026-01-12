@@ -19,10 +19,14 @@ public class Customer extends BaseEntity {
     @JoinColumn(name = "tier_id")
     private CustomerTier tier;
 
+    @OneToOne
+    @JoinColumn(name = "user_id", nullable = true)
+    private User user;
+
     @Column(name = "full_name", length = 100)
     private String fullName;
 
-    @Column(unique = true, length = 20)
+    @Column(unique = true, length = 20, nullable = false)
     private String phone;
 
     @Column(length = 100)

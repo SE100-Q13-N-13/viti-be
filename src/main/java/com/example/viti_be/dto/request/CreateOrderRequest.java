@@ -3,6 +3,8 @@ package com.example.viti_be.dto.request;
 import com.example.viti_be.model.model_enum.OrderType;
 import com.example.viti_be.model.model_enum.PaymentMethod;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Data;
@@ -16,15 +18,25 @@ import java.util.UUID;
 public class CreateOrderRequest {
     private UUID customerId;  // Nullable for guest checkout
     private UUID employeeId;
-    private OrderType orderType; // OFFLINE, ONLINE_COD, ONLINE_TRANSFER
-    private PaymentMethod paymentMethod; // CASH, TRANSFER, COD
-    private String shippingAddress; // Required for online orders
 
-    @NotNull(message = "Giỏ hàng không được trống")
-    private List<OrderItemRequest> items;
+    @NotNull(message = "Order type is required")
+    private OrderType orderType; // OFFLINE, ONLINE_COD, ONLINE_TRANSFER
+
+    @NotNull(message = "Payment method is required")
+    private PaymentMethod paymentMethod; // CASH, TRANSFER, COD
+
+    @NotEmpty(message = "Order must have at least one item")
+    @Valid
+    private List<OrderItemRequest> items; // Required for online orders
 
     private List<UUID> promotionIds; // Khuyến mãi áp dụng
-    private Integer loyaltyPointsUsed; // Điểm sử dụng
+
+    /**
+     * Số điểm loyalty muốn sử dụng cho đơn hàng này
+     * Nullable - Nếu null hoặc 0 = không dùng điểm
+     */
+    @Min(value = 0, message = "Loyalty points must be non-negative")
+    private Integer loyaltyPointsToUse;
 
     // Guest info (nếu customerId == null)
     private String guestName;

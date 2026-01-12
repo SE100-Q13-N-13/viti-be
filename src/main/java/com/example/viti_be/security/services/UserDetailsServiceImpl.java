@@ -20,6 +20,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User Not Found with email: " + email));
 
+        if (!user.getIsActive()) {
+            throw new RuntimeException("Account is not verified. Please check your email for verification code.");
+        }
+
+        if ("SUSPENDED".equals(user.getStatus())) {
+            throw new RuntimeException("Account has been suspended. Please contact support.");
+        }
+
+        if ("TERMINATED".equals(user.getStatus())) {
+            throw new RuntimeException("Account has been terminated.");
+        }
+
         return UserDetailsImpl.build(user);
     }
 }

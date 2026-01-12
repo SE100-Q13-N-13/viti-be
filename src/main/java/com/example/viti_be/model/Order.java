@@ -7,7 +7,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,7 +46,8 @@ public class Order extends BaseEntity {
     private List<OrderPromotion> appliedPromotions;
 
     @Column(name = "loyalty_points_used")
-    private int loyaltyPointsUsed;
+    @Builder.Default
+    private Integer loyaltyPointsUsed = 0;
 
     // ==========================================
     // KHU VỰC TÀI CHÍNH (Dùng BigDecimal)
@@ -82,7 +82,7 @@ public class Order extends BaseEntity {
     private String tierName;
 
     @Column(name = "tier_discount_rate")
-    private Double tierDiscountRate;
+    private BigDecimal tierDiscountRate;
 
     @Column(name = "tier_discount_amount", precision = 15, scale = 2)
     private BigDecimal tierDiscountAmount;
