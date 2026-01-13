@@ -8,6 +8,8 @@ import com.example.viti_be.dto.response.CustomerResponse.AddressResponse;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -37,14 +39,20 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(response, "Get profile successfully"));
     }
 
-    // Cập nhật thông tin cá nhân
-    @PutMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PatchMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Cập nhật thông tin cá nhân (Partial Update)",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            encoding = @Encoding(name = "data", contentType = "application/json")
+                    )
+            )
+    )
     public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestPart(value = "data", required = false) UserRequest request,
             @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
-
-        if (request == null) request = new UserRequest();
 
         UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
         UserResponse response = userService.updateProfile(userImpl.getId(), request, avatar);
@@ -57,9 +65,10 @@ public class UserController {
     @Operation(summary = "Add address to current user's account")
     public ResponseEntity<ApiResponse<AddressResponse>> addAddress(
             @Valid @RequestBody AddressRequest request,
-            Authentication authentication) {
-        String email = authentication.getName();
-        AddressResponse response = userService.addAddress(email, request);
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID userId = userImpl.getId();
+        AddressResponse response = userService.addAddress(userId, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Address added successfully"));
     }
 
@@ -67,9 +76,10 @@ public class UserController {
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Get all addresses of current user")
     public ResponseEntity<ApiResponse<List<AddressResponse>>> getAddresses(
-            Authentication authentication) {
-        String email = authentication.getName();
-        List<AddressResponse> addresses = userService.getAddresses(email);
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID userId = userImpl.getId();
+        List<AddressResponse> addresses = userService.getAddresses(userId);
         return ResponseEntity.ok(ApiResponse.success(addresses, "Addresses retrieved successfully"));
     }
 
@@ -78,9 +88,10 @@ public class UserController {
     @Operation(summary = "Delete address from current user's account")
     public ResponseEntity<ApiResponse<Void>> deleteAddress(
             @PathVariable UUID addressId,
-            Authentication authentication) {
-        String email = authentication.getName();
-        userService.deleteAddress(email, addressId);
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID userId = userImpl.getId();
+        userService.deleteAddress(userId, addressId);
         return ResponseEntity.ok(ApiResponse.success(null, "Address deleted successfully"));
     }
 }
