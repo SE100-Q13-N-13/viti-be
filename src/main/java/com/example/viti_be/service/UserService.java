@@ -14,7 +14,7 @@ public interface UserService {
     UserResponse updateProfile(UUID userId, UserRequest request, MultipartFile avatarFile);
 
     // Address management methods
-    AddressResponse addAddress(String email, AddressRequest request);
-    List<AddressResponse> getAddresses(String email);
-    void deleteAddress(String email, UUID addressId);
+    AddressResponse addAddress(UUID userId, AddressRequest request);
+    List<AddressResponse> getAddresses(UUID userId);
+    void deleteAddress(UUID userId, UUID addressId);
 }

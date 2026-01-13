@@ -13,7 +13,7 @@ public interface AuthService {
     void createEmployee(CreateEmployeeRequest request);
     void forgotPassword(String email);
     void resetPasswordWithOtp(String email, String otp, String newPassword);
-    void changePassword(String username, String oldPassword, String newPassword);
+    void changePassword(UUID userId, String oldPassword, String newPassword);
     void registerUser(SignupRequest signUpRequest);
     void verifyUser(String email, String otp);
     GoogleLoginResponse loginWithGoogle(String idTokenString) throws Exception;

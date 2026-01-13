@@ -59,8 +59,10 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (request.getFullName() != null) user.setFullName(request.getFullName());
-        if (request.getPhone() != null) user.setPhone(request.getPhone());
+        if (request != null) {
+            if (request.getFullName() != null) user.setFullName(request.getFullName());
+            if (request.getPhone() != null) user.setPhone(request.getPhone());
+        }
 
         // Logic Upload Avatar
         if (avatarFile != null && !avatarFile.isEmpty()) {
@@ -79,10 +81,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public AddressResponse addAddress(String email, AddressRequest request) {
-        // Find customer by email
-        Customer customer = customerRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with email: " + email));
+    public AddressResponse addAddress(UUID userId, AddressRequest request) {
+        // Find customer by Id
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
 
         // Validate province
         Province province = provinceRepository.findById(request.getProvinceCode())
@@ -117,9 +121,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<AddressResponse> getAddresses(String email) {
-        Customer customer = customerRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with email: " + email));
+    public List<AddressResponse> getAddresses(UUID userId) {
+        // Find customer by Id
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
 
         return customer.getAddresses().stream()
                 .filter(address -> !Boolean.TRUE.equals(address.getIsDeleted()))
@@ -129,9 +136,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void deleteAddress(String email, UUID addressId) {
-        Customer customer = customerRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with email: " + email));
+    public void deleteAddress(UUID userId, UUID addressId) {
+        // Find customer by Id
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
 
         Address address = addressRepository.findById(addressId)
                 .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
