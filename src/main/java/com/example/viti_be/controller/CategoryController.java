@@ -9,10 +9,15 @@ import com.example.viti_be.mapper.CategoryMapper;
 import com.example.viti_be.model.Category;
 import com.example.viti_be.model.CategorySpec;
 import com.example.viti_be.service.CategoryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -36,16 +41,32 @@ public class CategoryController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
-    public ResponseEntity<ApiResponse<CategoryResponse>> create(@RequestBody CategoryRequest request) {
-        Category entity = categoryService.createCategory(request);
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Tạo danh mục mới",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(
+                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            encoding = {
+                                    @Encoding(name = "data", contentType = "application/json")
+                            }
+                    )
+            )
+    )
+    public ResponseEntity<ApiResponse<CategoryResponse>> create(
+            @RequestPart("data") CategoryRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        Category entity = categoryService.createCategory(request, image);
         return ResponseEntity.ok(ApiResponse.success(categoryMapper.toCategoryResponse(entity), "Created"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<CategoryResponse>> update(@PathVariable UUID id, @RequestBody CategoryRequest request) {
-        Category entity = categoryService.updateCategory(id, request);
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<CategoryResponse>> update(
+            @PathVariable UUID id,
+            @RequestPart("data") CategoryRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        Category entity = categoryService.updateCategory(id, request, image);
         return ResponseEntity.ok(ApiResponse.success(categoryMapper.toCategoryResponse(entity), "Updated"));
     }
 

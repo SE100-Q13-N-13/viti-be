@@ -19,6 +19,12 @@ public class Category extends BaseEntity {
     @JoinColumn(name = "parent_id")
     private Category parent;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    @Column(name = "description")
+    private String description;
+
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CategorySpec> specs;
 
