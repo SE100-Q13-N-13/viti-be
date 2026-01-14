@@ -5,13 +5,16 @@ import com.example.viti_be.dto.response.ProductSerialResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.Inventory;
+import com.example.viti_be.model.PartComponent;
 import com.example.viti_be.model.ProductSerial;
 import com.example.viti_be.model.ProductVariant;
 import com.example.viti_be.model.model_enum.ProductSerialStatus;
 import com.example.viti_be.repository.InventoryRepository;
+import com.example.viti_be.repository.PartComponentRepository;
 import com.example.viti_be.repository.ProductSerialRepository;
 import com.example.viti_be.repository.ProductVariantRepository;
 import com.example.viti_be.service.InventoryService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class InventoryServiceImpl implements InventoryService {
 
@@ -34,11 +38,36 @@ public class InventoryServiceImpl implements InventoryService {
     @Autowired
     private ProductSerialRepository productSerialRepository;
 
+    @Autowired
+    private PartComponentRepository partComponentRepository;
+
     @Override
     @Transactional
     public Inventory getOrCreateInventory(UUID productVariantId, UUID createdBy) {
         return inventoryRepository.findByProductVariantId(productVariantId)
                 .orElseGet(() -> createNewInventory(productVariantId, createdBy));
+    }
+
+    @Transactional
+    @Override
+    public Inventory getOrCreatePartInventory(UUID partId, UUID createdBy) {
+        return inventoryRepository.findByPartComponentId(partId)
+                .orElseGet(() -> {
+                    PartComponent part = partComponentRepository.findByIdAndIsDeletedFalse(partId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Part Component not found with ID: " + partId));
+
+                    Inventory inventory = Inventory.builder()
+                            .partComponentId(part.getId())
+                            .productVariant(null)
+                            .quantityPhysical(0)
+                            .quantityReserved(0)
+                            .quantityAvailable(0)
+                            .minThreshold(part.getMinStock() != null ? part.getMinStock() : 0)
+                            .createdBy(createdBy)
+                            .build();
+
+                    return inventoryRepository.save(inventory);
+                });
     }
 
     private Inventory createNewInventory(UUID productVariantId, UUID createdBy) {
@@ -230,6 +259,39 @@ public class InventoryServiceImpl implements InventoryService {
         // TODO: Log inventory history transaction (StockTransaction)
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void reservePartStock(UUID partId, int quantity, String ref, UUID actorId) {
+        if (quantity <= 0) {
+            throw new BadRequestException("Số lượng giữ hàng phải lớn hơn 0");
+        }
+
+        // 1. Lấy thông tin kho
+        Inventory inventory = getOrCreatePartInventory(partId, actorId);
+
+        // 2. Kiểm tra tồn kho khả dụng (Available)
+        if (inventory.getQuantityAvailable() < quantity) {
+            // Lấy tên linh kiện để báo lỗi rõ ràng
+            String partName = partComponentRepository.findById(partId)
+                    .map(PartComponent::getName)
+                    .orElse("Unknown Part");
+
+            throw new BadRequestException(String.format(
+                    "Không đủ linh kiện '%s' trong kho. Yêu cầu: %d, Còn: %d",
+                    partName, quantity, inventory.getQuantityAvailable()
+            ));
+        }
+
+        // 3. Thực hiện giữ hàng (Available giảm, Reserved tăng)
+        inventory.setQuantityAvailable(inventory.getQuantityAvailable() - quantity);
+        inventory.setQuantityReserved(inventory.getQuantityReserved() + quantity);
+        inventory.setUpdatedBy(actorId);
+
+        inventoryRepository.save(inventory);
+
+        // TODO: Ghi log StockTransaction (Type: RESERVE) nếu cần
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void unreserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId) {
@@ -251,6 +313,41 @@ public class InventoryServiceImpl implements InventoryService {
         inventoryRepository.save(inventory);
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void unreservePartStock(UUID partId, int quantity, String ref, UUID actorId) {
+        if (quantity <= 0) {
+            return; // Không làm gì nếu số lượng <= 0
+        }
+
+        // 1. Lấy kho linh kiện
+        Inventory inventory = getOrCreatePartInventory(partId, actorId);
+
+        // 2. Logic: Chuyển từ Reserved (Đã giữ) -> Available (Khả dụng)
+
+        // Tăng lượng khả dụng
+        inventory.setQuantityAvailable(inventory.getQuantityAvailable() + quantity);
+
+        // Giảm lượng đã giữ
+        int currentReserved = inventory.getQuantityReserved();
+        int newReserved = currentReserved - quantity;
+
+        // Safety check: Tránh số âm nếu dữ liệu kho bị lệch
+        if (newReserved < 0) {
+            // Log warning để dev biết có sự bất thường
+             log.warn("Part Inventory Inconsistency: ID={} Ref={} Reserved={} Unreserve={}",
+                      partId, ref, currentReserved, quantity);
+            newReserved = 0;
+        }
+
+        inventory.setQuantityReserved(newReserved);
+        inventory.setUpdatedBy(actorId);
+
+        inventoryRepository.save(inventory);
+
+        // TODO: Ghi log StockTransaction (Type: UNRESERVE / CANCEL)
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void confirmStockOut(UUID productVariantId, int quantity, String orderRef, UUID actorId) {
@@ -266,6 +363,43 @@ public class InventoryServiceImpl implements InventoryService {
         inventory.setUpdatedBy(actorId);
 
         inventoryRepository.save(inventory);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void confirmPartStockOut(UUID partId, int quantity, String ref, UUID actorId) {
+        if (quantity <= 0) {
+            throw new BadRequestException("Số lượng xuất kho phải lớn hơn 0");
+        }
+
+        // 1. Lấy thông tin kho
+        Inventory inventory = getOrCreatePartInventory(partId, actorId);
+
+        // 2. Kiểm tra lượng hàng đã giữ (Reserved)
+        // Lưu ý: Nghiệp vụ chuẩn là Phải Reserve trước rồi mới Confirm Out.
+        // Nếu quantityReserved < quantity nghĩa là chưa Reserve hoặc logic sai.
+        if (inventory.getQuantityReserved() < quantity) {
+            // Fallback: Nếu chưa reserve (trường hợp sửa nhanh), kiểm tra Available và trừ thẳng
+            if (inventory.getQuantityAvailable() >= quantity) {
+                // Trừ thẳng vào Available và Physical (Bỏ qua bước Reserve)
+                inventory.setQuantityAvailable(inventory.getQuantityAvailable() - quantity);
+                inventory.setQuantityPhysical(inventory.getQuantityPhysical() - quantity);
+                inventory.setUpdatedBy(actorId);
+                inventoryRepository.save(inventory);
+                return;
+            } else {
+                throw new BadRequestException("Lỗi kho linh kiện: Số lượng cần xuất vượt quá số lượng đã giữ (Reserved) và khả dụng (Available).");
+            }
+        }
+
+        // 3. Thực hiện xuất kho thật sự (Reserved giảm, Physical giảm)
+        inventory.setQuantityReserved(inventory.getQuantityReserved() - quantity);
+        inventory.setQuantityPhysical(inventory.getQuantityPhysical() - quantity);
+        inventory.setUpdatedBy(actorId);
+
+        inventoryRepository.save(inventory);
+
+        // TODO: Ghi log StockTransaction (Type: OUT) nếu cần
     }
 
     @Override

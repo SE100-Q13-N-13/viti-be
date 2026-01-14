@@ -27,4 +27,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     
     @Query("SELECT i FROM Inventory i JOIN i.productVariant pv WHERE pv.product.id = :productId AND i.isDeleted = false")
     List<Inventory> findByProductId(@Param("productId") UUID productId);
+
+    @Query("SELECT i FROM Inventory i WHERE i.partComponentId = :partComponentId AND i.isDeleted = false")
+    Optional<Inventory> findByPartComponentId(@Param("partComponentId") UUID partComponentId);
 }

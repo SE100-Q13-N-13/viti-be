@@ -5,6 +5,7 @@ import com.example.viti_be.dto.response.ProductSerialResponse;
 import com.example.viti_be.model.Inventory;
 import com.example.viti_be.model.ProductSerial;
 import com.example.viti_be.model.model_enum.ProductSerialStatus;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,7 +19,10 @@ public interface InventoryService {
      * @return Inventory entity
      */
     Inventory getOrCreateInventory(UUID productVariantId, UUID createdBy);
-    
+
+    @Transactional
+    Inventory getOrCreatePartInventory(UUID partId, UUID createdBy);
+
     /**
      * Add stock to inventory
      * @param productVariantId UUID of the product variant
@@ -141,17 +145,25 @@ public interface InventoryService {
      */
     void reserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId);
 
+    void reservePartStock(UUID partId, int quantity, String ref, UUID actorId);
+
     /**
      * Hủy giữ hàng (Un-reservation): Trả lại Available, Giảm Reserved
      * Dùng khi hủy đơn hàng
      */
     void unreserveStock(UUID productVariantId, int quantity, String orderRef, UUID actorId);
 
+    @Transactional(rollbackFor = Exception.class)
+    void unreservePartStock(UUID partId, int quantity, String ref, UUID actorId);
+
     /**
      * Xác nhận xuất kho (Stock Out): Giảm Reserved, Giảm Physical
      * Dùng khi đơn hàng hoàn tất/giao đi
      */
     void confirmStockOut(UUID productVariantId, int quantity, String orderRef, UUID actorId);
+
+    @Transactional(rollbackFor = Exception.class)
+    void confirmPartStockOut(UUID partId, int quantity, String ref, UUID actorId);
 
     /**
      * Cấp phát Serial cho đơn hàng
