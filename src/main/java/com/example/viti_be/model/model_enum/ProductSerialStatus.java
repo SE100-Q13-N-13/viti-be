@@ -1,8 +1,12 @@
 package com.example.viti_be.model.model_enum;
 
+/**
+ * Trạng thái serial (update existing enum nếu chưa có DEFECTIVE)
+ */
 public enum ProductSerialStatus {
-    AVAILABLE,  // Có sẵn để bán
-    SOLD,       // Đã bán
-    WARRANTY,   // Đang bảo hành
-    DEFECTIVE   // Lỗi/Hỏng
+    AVAILABLE,   // Sẵn bán
+    SOLD,        // Đã bán
+    DISPLAY,     // Trưng bày
+    WARRANTY,    // Đang bảo hành/sửa chữa
+    DEFECTIVE    // Hỏng không sửa được (cho replacement)
 }
