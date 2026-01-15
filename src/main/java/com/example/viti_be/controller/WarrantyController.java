@@ -2,6 +2,7 @@ package com.example.viti_be.controller;
 
 import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.WarrantyService;
 import com.example.viti_be.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -37,9 +40,9 @@ public class WarrantyController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
     @Operation(summary = "Create warranty ticket")
     public ResponseEntity<Map<String, Object>> createTicket(
-            @Valid @RequestBody CreateWarrantyTicketRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody CreateWarrantyTicketRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.createTicket(request, actorId);
 
         return buildSuccessResponse(response, "Ticket created successfully", HttpStatus.CREATED);
@@ -50,9 +53,9 @@ public class WarrantyController {
     @Operation(summary = "Update warranty ticket")
     public ResponseEntity<Map<String, Object>> updateTicket(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateWarrantyTicketRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody UpdateWarrantyTicketRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.updateTicket(id, request, actorId);
 
         return buildSuccessResponse(response, "Ticket updated successfully");
@@ -61,8 +64,10 @@ public class WarrantyController {
     @DeleteMapping("/admin/warranty-tickets/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete warranty ticket")
-    public ResponseEntity<Map<String, Object>> deleteTicket(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    public ResponseEntity<Map<String, Object>> deleteTicket(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         warrantyService.deleteTicket(id, actorId);
 
         return buildSuccessResponse(null, "Ticket deleted successfully");
@@ -103,9 +108,9 @@ public class WarrantyController {
     @Operation(summary = "Change ticket status")
     public ResponseEntity<Map<String, Object>> changeStatus(
             @PathVariable UUID id,
-            @Valid @RequestBody ChangeTicketStatusRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody ChangeTicketStatusRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.changeTicketStatus(id, request, actorId);
 
         return buildSuccessResponse(response, "Status changed successfully");
@@ -114,8 +119,9 @@ public class WarrantyController {
     @PostMapping("/admin/warranty-tickets/{id}/start")
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
     @Operation(summary = "Start repair")
-    public ResponseEntity<Map<String, Object>> startRepair(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    public ResponseEntity<Map<String, Object>> startRepair(@PathVariable UUID id,
+                                                           @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.startRepair(id, actorId);
 
         return buildSuccessResponse(response, "Repair started");
@@ -124,8 +130,9 @@ public class WarrantyController {
     @PostMapping("/admin/warranty-tickets/{id}/complete")
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
     @Operation(summary = "Complete repair")
-    public ResponseEntity<Map<String, Object>> completeRepair(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    public ResponseEntity<Map<String, Object>> completeRepair(@PathVariable UUID id,
+                                                              @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.completeRepair(id, actorId);
 
         return buildSuccessResponse(response, "Repair completed");
@@ -134,8 +141,9 @@ public class WarrantyController {
     @PostMapping("/admin/warranty-tickets/{id}/return")
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'CASHIER')")
     @Operation(summary = "Return to customer")
-    public ResponseEntity<Map<String, Object>> returnToCustomer(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    public ResponseEntity<Map<String, Object>> returnToCustomer(@PathVariable UUID id,
+                                                                @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.returnToCustomer(id, actorId);
 
         return buildSuccessResponse(response, "Returned to customer");
@@ -146,9 +154,9 @@ public class WarrantyController {
     @Operation(summary = "Cancel ticket")
     public ResponseEntity<Map<String, Object>> cancelTicket(
             @PathVariable UUID id,
-            @RequestParam String reason) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @RequestParam String reason,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.cancelTicket(id, reason, actorId);
 
         return buildSuccessResponse(response, "Ticket cancelled");
@@ -159,9 +167,9 @@ public class WarrantyController {
     @Operation(summary = "Add services to ticket")
     public ResponseEntity<Map<String, Object>> addServices(
             @PathVariable UUID id,
-            @Valid @RequestBody AddServicesRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody AddServicesRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.addServices(id, request, actorId);
 
         return buildSuccessResponse(response, "Services added");
@@ -172,9 +180,9 @@ public class WarrantyController {
     @Operation(summary = "Remove service from ticket")
     public ResponseEntity<Map<String, Object>> removeService(
             @PathVariable UUID id,
-            @PathVariable UUID serviceId) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @PathVariable UUID serviceId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.removeService(id, serviceId, actorId);
 
         return buildSuccessResponse(response, "Service removed");
@@ -185,9 +193,9 @@ public class WarrantyController {
     @Operation(summary = "Add parts to ticket")
     public ResponseEntity<Map<String, Object>> addParts(
             @PathVariable UUID id,
-            @Valid @RequestBody AddPartsRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody AddPartsRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.addParts(id, request, actorId);
 
         return buildSuccessResponse(response, "Parts added");
@@ -198,9 +206,9 @@ public class WarrantyController {
     @Operation(summary = "Remove part from ticket")
     public ResponseEntity<Map<String, Object>> removePart(
             @PathVariable UUID id,
-            @PathVariable UUID partId) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @PathVariable UUID partId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.removePart(id, partId, actorId);
 
         return buildSuccessResponse(response, "Part removed");

@@ -5,6 +5,7 @@ import com.example.viti_be.dto.request.PromotionRequest;
 import com.example.viti_be.dto.response.CartDiscountCalculationResponse;
 import com.example.viti_be.dto.response.PromotionResponse;
 import com.example.viti_be.dto.response.PromotionUsageReportResponse;
+import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.PromotionService;
 import com.example.viti_be.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -43,9 +46,9 @@ public class PromotionController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create new promotion (Admin)")
     public ResponseEntity<Map<String, Object>> createPromotion(
-            @Valid @RequestBody PromotionRequest request) {
-
-        UUID adminId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody PromotionRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         PromotionResponse response = promotionService.createPromotion(request, adminId);
 
         Map<String, Object> result = new HashMap<>();
@@ -61,9 +64,9 @@ public class PromotionController {
     @Operation(summary = "Update promotion (Admin)")
     public ResponseEntity<Map<String, Object>> updatePromotion(
             @PathVariable UUID id,
-            @Valid @RequestBody PromotionRequest request) {
-
-        UUID adminId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody PromotionRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         PromotionResponse response = promotionService.updatePromotion(id, request, adminId);
 
         Map<String, Object> result = new HashMap<>();
@@ -77,8 +80,9 @@ public class PromotionController {
     @DeleteMapping("/admin/promotions/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete promotion (Admin)")
-    public ResponseEntity<Map<String, Object>> deletePromotion(@PathVariable UUID id) {
-        UUID adminId = SecurityUtils.getCurrentUserId();
+    public ResponseEntity<Map<String, Object>> deletePromotion(@PathVariable UUID id,
+                                                               @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         promotionService.deletePromotion(id, adminId);
 
         Map<String, Object> result = new HashMap<>();
@@ -91,8 +95,9 @@ public class PromotionController {
     @PatchMapping("/admin/promotions/{id}/toggle")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Toggle promotion status (Admin)")
-    public ResponseEntity<Map<String, Object>> togglePromotionStatus(@PathVariable UUID id) {
-        UUID adminId = SecurityUtils.getCurrentUserId();
+    public ResponseEntity<Map<String, Object>> togglePromotionStatus(@PathVariable UUID id,
+                                                                     @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         PromotionResponse response = promotionService.togglePromotionStatus(id, adminId);
 
         Map<String, Object> result = new HashMap<>();

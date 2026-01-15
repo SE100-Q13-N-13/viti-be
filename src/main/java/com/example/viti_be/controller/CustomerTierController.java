@@ -3,11 +3,14 @@ package com.example.viti_be.controller;
 import com.example.viti_be.dto.request.CustomerTierRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.CustomerTierResponse;
+import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.CustomerTierService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -61,7 +64,8 @@ public class CustomerTierController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CustomerTierResponse>> createTier(
             @Valid @RequestBody CustomerTierRequest request,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         CustomerTierResponse tier = customerTierService.createTier(request, adminId);
         return ResponseEntity.ok(ApiResponse.success(tier, "Tier created successfully"));
     }
@@ -76,7 +80,9 @@ public class CustomerTierController {
     public ResponseEntity<ApiResponse<CustomerTierResponse>> updateTier(
             @PathVariable UUID id,
             @Valid @RequestBody CustomerTierRequest request,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         CustomerTierResponse tier = customerTierService.updateTier(id, request, adminId);
         return ResponseEntity.ok(ApiResponse.success(tier, "Tier updated successfully. All customers re-calculated."));
     }
@@ -89,7 +95,9 @@ public class CustomerTierController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteTier(
             @PathVariable UUID id,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         customerTierService.deleteTier(id, adminId);
         return ResponseEntity.ok(ApiResponse.success(null, "Tier deleted successfully"));
     }
@@ -102,7 +110,8 @@ public class CustomerTierController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CustomerTierResponse>> toggleTierStatus(
             @PathVariable UUID id,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         CustomerTierResponse tier = customerTierService.toggleTierStatus(id, adminId);
         return ResponseEntity.ok(ApiResponse.success(tier, "Tier status updated successfully"));
     }
@@ -115,7 +124,8 @@ public class CustomerTierController {
     @PostMapping("/recalculate-all")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> recalculateAllCustomerTiers(
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         customerTierService.recalculateAllCustomerTiers(adminId);
         return ResponseEntity.ok(ApiResponse.success(null, "All customer tiers recalculated successfully"));
     }
