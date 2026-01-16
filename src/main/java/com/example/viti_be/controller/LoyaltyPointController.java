@@ -4,6 +4,7 @@ import com.example.viti_be.dto.request.AdjustPointsRequest;
 import com.example.viti_be.dto.request.ResetPointsRequest;
 import com.example.viti_be.dto.request.UpdateLoyaltyConfigRequest;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.LoyaltyPointService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -75,7 +78,8 @@ public class LoyaltyPointController {
     public ResponseEntity<ApiResponse<LoyaltyPointResponse>> adjustPoints(
             @PathVariable UUID customerId,
             @Valid @RequestBody AdjustPointsRequest request,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         LoyaltyPointResponse response = loyaltyPointService.adjustPoints(customerId, request, adminId);
         return ResponseEntity.ok(ApiResponse.success(response, "Points adjusted successfully"));
     }
@@ -90,7 +94,8 @@ public class LoyaltyPointController {
     public ResponseEntity<ApiResponse<LoyaltyPointResponse>> resetCustomerPoints(
             @PathVariable UUID customerId,
             @Valid @RequestBody ResetPointsRequest request,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         LoyaltyPointResponse response = loyaltyPointService.resetCustomerPoints(customerId, request, adminId);
         return ResponseEntity.ok(ApiResponse.success(response, "Customer points reset successfully"));
     }
@@ -104,7 +109,8 @@ public class LoyaltyPointController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ResetResultResponse>> resetAllCustomerPoints(
             @Valid @RequestBody ResetPointsRequest request,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         ResetResultResponse response = loyaltyPointService.resetAllCustomerPoints(request.getReason(), adminId);
         return ResponseEntity.ok(ApiResponse.success(response, "All customer points reset successfully"));
     }
@@ -131,7 +137,8 @@ public class LoyaltyPointController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<LoyaltyConfigResponse>> updateLoyaltyConfig(
             @Valid @RequestBody UpdateLoyaltyConfigRequest request,
-            @RequestAttribute("userId") UUID adminId) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID adminId = ((UserDetailsImpl) userDetails).getId();
         LoyaltyConfigResponse response = loyaltyPointService.updateLoyaltyConfig(request, adminId);
         return ResponseEntity.ok(ApiResponse.success(response, "Loyalty config updated successfully"));
     }

@@ -54,8 +54,8 @@ public class WarrantyTicketPart extends BaseEntity {
      * Helper: Set price from PartComponent with markup
      */
     public void setPriceFromPartComponent(BigDecimal markupPercent) {
-        if (this.partComponent != null && this.partComponent.getUnitPrice() != null) {
-            BigDecimal costPrice = this.partComponent.getUnitPrice();
+        if (this.partComponent != null && this.partComponent.getSellingPrice() != null) {
+            BigDecimal costPrice = this.partComponent.getSellingPrice();
 
             // Apply markup
             if (markupPercent != null && markupPercent.compareTo(BigDecimal.ZERO) > 0) {

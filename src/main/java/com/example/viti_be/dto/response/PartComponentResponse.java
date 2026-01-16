@@ -17,10 +17,10 @@ public class PartComponentResponse {
     private String partType;
     private SupplierInfo supplier;
     private String unit;
-    private BigDecimal unitPrice;
+    private BigDecimal purchasePriceAvg;
+    private BigDecimal sellingPrice;
     private Integer minStock;
-    private Integer currentStock; // From inventory
-    private Boolean isActive;
+    private Integer currentStock;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

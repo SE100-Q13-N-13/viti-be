@@ -48,6 +48,8 @@ public class DataInitializer implements CommandLineRunner {
         try {
             log.info("Starting data initialization...");
 
+            createSystemConfigs();
+
             // Skip if admin user already exists (check by email)
             if (userRepository.findByEmail("admin@viti.com").isPresent()) {
                 log.info("Data already initialized (admin user exists). Skipping...");
@@ -65,8 +67,6 @@ public class DataInitializer implements CommandLineRunner {
             CustomerTier silverTier = createCustomerTier("Silver", 1000, BigDecimal.valueOf(0.10));
             CustomerTier goldTier = createCustomerTier("Gold", 5000, BigDecimal.valueOf(0.15));
             CustomerTier platinumTier = createCustomerTier("Platinum", 20000, BigDecimal.valueOf(0.20));
-
-            createSystemConfigs();
 
             // 3. Create admin user
             User adminUser = createUser(
@@ -155,6 +155,7 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Data initialization completed successfully!");
             log.info("Admin credentials - Email: admin@viti.com, Password: Admin123!");
             log.info("Employee credentials - Email: employee@viti.com, Password: Employee123!");
+            log.info("Technician credentials - Email: technician@viti.com, Password: Technician123!");
             log.info("Sample customer credentials - Email: customer1@gmail.com, Password: Customer123!");
 
         } catch (Exception e) {

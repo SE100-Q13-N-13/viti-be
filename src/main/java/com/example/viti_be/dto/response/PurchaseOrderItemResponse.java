@@ -11,6 +11,7 @@ import java.util.UUID;
 public class PurchaseOrderItemResponse {
     private UUID id;
     private ProductVariantInfo productVariant;
+    private PartComponentResponse partComponent;
     private Integer quantityOrdered;
     private Integer quantityReceived;
     private BigDecimal unitPrice;
