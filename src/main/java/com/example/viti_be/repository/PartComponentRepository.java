@@ -14,11 +14,12 @@ public interface PartComponentRepository extends JpaRepository<PartComponent, UU
 
     Optional<PartComponent> findByIdAndIsDeletedFalse(UUID id);
 
-    List<PartComponent> findByIsActiveTrueAndIsDeletedFalseOrderByName();
+    List<PartComponent> findByIsDeletedFalseOrderByName();
 
     List<PartComponent> findAllByIsDeletedFalseOrderByName();
 
-    List<PartComponent> findByPartTypeAndIsActiveTrueAndIsDeletedFalse(String partType);
+
+    List<PartComponent> findByPartTypeAndIsDeletedFalse(String partType);
 
     // Find low stock parts
     @Query("SELECT pc FROM PartComponent pc JOIN Inventory i ON i.partComponentId = pc.id " +

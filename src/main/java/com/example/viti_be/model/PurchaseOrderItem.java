@@ -20,8 +20,12 @@ public class PurchaseOrderItem extends BaseEntity {
     private PurchaseOrder purchaseOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_variant_id", nullable = false)
+    @JoinColumn(name = "product_variant_id")
     private ProductVariant productVariant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "part_component_id")
+    private PartComponent partComponent;
 
     @Column(name = "reference_ticket_id")
     private UUID referenceTicketId; // Optional, for warranty parts
