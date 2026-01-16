@@ -2,6 +2,7 @@ package com.example.viti_be.service;
 
 import com.example.viti_be.dto.request.CreateOrderRequest;
 import com.example.viti_be.dto.response.OrderResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Order;
 import com.example.viti_be.model.model_enum.OrderStatus;
 import jakarta.transaction.Transactional;
@@ -19,5 +20,5 @@ public interface OrderService {
     OrderResponse updateOrderStatus(UUID orderId, OrderStatus newStatus, String reason, UUID userId);
 
     void deleteOrder(UUID id);
-    Page<OrderResponse> getOrdersByUserId(UUID userId, Pageable pageable);
+    PageResponse<OrderResponse> getOrdersByUserId(UUID userId, Pageable pageable);
 }
