@@ -31,6 +31,16 @@ public interface InventoryService {
      * @return Updated Inventory
      */
     Inventory addStock(UUID productVariantId, int quantity, UUID createdBy);
+
+    /**
+     * Reduce stock from inventory (for adjustments, damage, loss, etc.)
+     * @param productVariantId UUID of the product variant
+     * @param quantity Quantity to reduce
+     * @param reason Reason for reduction
+     * @param createdBy UUID of the user
+     * @return Updated Inventory
+     */
+    Inventory reduceStock(UUID productVariantId, int quantity, String reason, UUID createdBy);
     
     /**
      * Get inventory by product variant ID

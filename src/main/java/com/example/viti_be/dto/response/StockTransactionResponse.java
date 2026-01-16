@@ -12,12 +12,20 @@ import java.util.UUID;
 public class StockTransactionResponse {
     private UUID id;
     private UUID inventoryId;
+
+    private UUID productVariantId;
+    private String productVariantName;
+    private String sku;
+
     private StockTransactionType type;
     private Integer quantity;
     private Integer quantityBefore;
     private Integer quantityAfter;
     private String reason;
+
     private String referenceId;
     private LocalDateTime createdAt;
     private UUID createdBy;
+
+    private String createdByName;
 }

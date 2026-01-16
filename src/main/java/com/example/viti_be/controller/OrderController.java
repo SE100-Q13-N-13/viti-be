@@ -7,11 +7,13 @@ import com.example.viti_be.model.model_enum.OrderStatus;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.OrderService;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -36,7 +38,8 @@ public class OrderController {
             @Valid @RequestBody CreateOrderRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UUID actorId = getUserId(userDetails);
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID actorId = userImpl.getId();
         OrderResponse newOrder = orderService.createOrder(request, actorId);
 
         return ResponseEntity.ok(ApiResponse.success(newOrder, "Tạo đơn hàng thành công"));
@@ -58,14 +61,8 @@ public class OrderController {
      */
     @GetMapping
     public ResponseEntity<ApiResponse<Page<OrderResponse>>> getAllOrders(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String order
+            @ParameterObject @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
     ) {
-        Sort.Direction direction = order.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-
         Page<OrderResponse> orders = orderService.getAllOrders(pageable);
         return ResponseEntity.ok(ApiResponse.success(orders, "Lấy danh sách đơn hàng thành công"));
     }
@@ -81,7 +78,8 @@ public class OrderController {
             @RequestParam(value = "reason", required = false) String reason,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UUID actorId = getUserId(userDetails);
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID actorId = userImpl.getId();
         OrderResponse updatedOrder = orderService.updateOrderStatus(id, status, reason, actorId);
 
         return ResponseEntity.ok(ApiResponse.success(updatedOrder, "Cập nhật trạng thái đơn hàng thành công: " + status));
@@ -97,7 +95,8 @@ public class OrderController {
             @RequestParam(value = "reason", required = true) String reason,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UUID actorId = getUserId(userDetails);
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID actorId = userImpl.getId();
         // Gọi service update status -> CANCELLED
         OrderResponse cancelledOrder = orderService.updateOrderStatus(id, OrderStatus.CANCELLED, reason, actorId);
 
@@ -113,7 +112,8 @@ public class OrderController {
             @PathVariable("id") UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UUID actorId = getUserId(userDetails);
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID actorId = userImpl.getId();
         // Gọi service update status -> CONFIRMED
         OrderResponse confirmedOrder = orderService.updateOrderStatus(id, OrderStatus.CONFIRMED, null, actorId);
 
@@ -143,19 +143,13 @@ public class OrderController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
 
-        UUID userId = getUserId(userDetails);
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID actorId = userImpl.getId();
         Sort.Direction direction = order.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
-        Page<OrderResponse> orders = orderService.getOrdersByUserId(userId, pageable);
+        Page<OrderResponse> orders = orderService.getOrdersByUserId(actorId, pageable);
         return ResponseEntity.ok(ApiResponse.success(orders, "Lấy danh sách đơn hàng thành công"));
     }
 
-    // ================= HELPER METHODS =================
-    private UUID getUserId(UserDetails userDetails) {
-        if (userDetails instanceof UserDetailsImpl) {
-            return ((UserDetailsImpl) userDetails).getId();
-        }
-        throw new RuntimeException("User authentication required");
-    }
 }
