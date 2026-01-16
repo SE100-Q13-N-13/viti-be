@@ -17,7 +17,6 @@ import java.util.UUID;
 @Valid
 public class CreateOrderRequest {
     private UUID customerId;  // Nullable for guest checkout
-    private UUID employeeId;
 
     @NotNull(message = "Order type is required")
     private OrderType orderType; // OFFLINE, ONLINE_COD, ONLINE_TRANSFER
@@ -42,4 +41,5 @@ public class CreateOrderRequest {
     private String guestName;
     private String guestPhone;
     private String guestEmail;
+    private String shippingAddress;
 }

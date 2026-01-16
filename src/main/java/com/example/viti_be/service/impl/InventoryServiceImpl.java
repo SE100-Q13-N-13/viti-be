@@ -4,15 +4,10 @@ import com.example.viti_be.dto.response.InventoryResponse;
 import com.example.viti_be.dto.response.ProductSerialResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
-import com.example.viti_be.model.Inventory;
-import com.example.viti_be.model.PartComponent;
-import com.example.viti_be.model.ProductSerial;
-import com.example.viti_be.model.ProductVariant;
+import com.example.viti_be.model.*;
 import com.example.viti_be.model.model_enum.ProductSerialStatus;
-import com.example.viti_be.repository.InventoryRepository;
-import com.example.viti_be.repository.PartComponentRepository;
-import com.example.viti_be.repository.ProductSerialRepository;
-import com.example.viti_be.repository.ProductVariantRepository;
+import com.example.viti_be.model.model_enum.StockTransactionType;
+import com.example.viti_be.repository.*;
 import com.example.viti_be.service.InventoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +35,9 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Autowired
     private PartComponentRepository partComponentRepository;
+
+    @Autowired
+    private StockTransactionRepository stockTransactionRepository;
 
     @Override
     @Transactional
@@ -93,6 +91,46 @@ public class InventoryServiceImpl implements InventoryService {
         Inventory inventory = getOrCreateInventory(productVariantId, createdBy);
         inventory.addStock(quantity);
         inventory.setUpdatedBy(createdBy);
+        return inventoryRepository.save(inventory);
+    }
+
+    @Override
+    @Transactional
+    public Inventory reduceStock(UUID productVariantId, int quantity, String reason, UUID createdBy) {
+        if (quantity <= 0) {
+            throw new BadRequestException("Quantity must be positive");
+        }
+
+        // Get or create inventory
+        Inventory inventory = getOrCreateInventory(productVariantId, createdBy);
+
+        // Check available stock
+        if (inventory.getQuantityAvailable() < quantity) {
+            throw new BadRequestException(
+                    String.format("Insufficient stock. Available: %d, Requested: %d",
+                            inventory.getQuantityAvailable(), quantity)
+            );
+        }
+
+        // Reduce stock
+        int before = inventory.getQuantityPhysical();
+        inventory.setQuantityPhysical(inventory.getQuantityPhysical() - quantity);
+        inventory.setQuantityAvailable(inventory.getQuantityAvailable() - quantity);
+        int after = inventory.getQuantityPhysical();
+
+        // Create stock transaction
+        StockTransaction transaction = StockTransaction.builder()
+                .inventory(inventory)
+                .type(StockTransactionType.STOCK_OUT)
+                .quantity(-quantity)  // Negative for decrease
+                .quantityBefore(before)
+                .quantityAfter(after)
+                .reason(reason)
+                .createdBy(createdBy)
+                .build();
+
+        stockTransactionRepository.save(transaction);
+
         return inventoryRepository.save(inventory);
     }
 

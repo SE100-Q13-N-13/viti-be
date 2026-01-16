@@ -2,6 +2,8 @@ package com.example.viti_be.repository;
 
 import com.example.viti_be.model.Order;
 import com.example.viti_be.model.model_enum.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +15,8 @@ import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findByOrderNumber(String orderNumber);
-
+    Page<Order> findByCustomer_Id(UUID customerId, Pageable pageable);
+    Page<Order> findByEmployee_Id(UUID employeeId, Pageable pageable);
     @Query("SELECT o FROM Order o WHERE o.status = :status " +
             "AND o.createdAt BETWEEN :startDate AND :endDate")
     List<Order> findByStatusAndDateRange(
