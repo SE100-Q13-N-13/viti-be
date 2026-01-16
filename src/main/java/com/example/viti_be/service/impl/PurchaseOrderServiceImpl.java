@@ -4,16 +4,19 @@ import com.example.viti_be.dto.request.PurchaseOrderItemRequest;
 import com.example.viti_be.dto.request.PurchaseOrderRequest;
 import com.example.viti_be.dto.request.ReceiveGoodsItemRequest;
 import com.example.viti_be.dto.request.ReceiveGoodsRequest;
+import com.example.viti_be.dto.response.PartComponentResponse;
 import com.example.viti_be.dto.response.PurchaseOrderItemResponse;
 import com.example.viti_be.dto.response.PurchaseOrderResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
+import com.example.viti_be.mapper.WarrantyMapper;
 import com.example.viti_be.model.*;
 import com.example.viti_be.model.model_enum.*;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.AuditLogService;
 import com.example.viti_be.service.InventoryService;
 import com.example.viti_be.service.PurchaseOrderService;
+import com.example.viti_be.service.SystemConfigService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -60,6 +63,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private ProductSerialRepository productSerialRepository;
 
     @Autowired
+    private PartComponentRepository partComponentRepository;
+
+    @Autowired
     private InventoryService inventoryService;
 
     @Autowired
@@ -68,7 +74,12 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    // ==================== API 1: Create Purchase Order (Draft) ====================
+    @Autowired
+    private WarrantyMapper warrantyMapper;
+
+    @Autowired
+    private SystemConfigService systemConfigService;
+
     @Override
     @Transactional
     public PurchaseOrderResponse createPurchaseOrder(PurchaseOrderRequest request, UUID createdBy) {
@@ -78,8 +89,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         Supplier supplier = supplierRepository.findById(request.getSupplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with ID: " + request.getSupplierId()));
 
-        // 2. Validate all product variants exist
-        validateProductVariants(request.getItems());
+        // 2. Validate all items exist
+        validatePurchaseOrderItems(request.getItems());
 
         // 3. Generate PO Number
         String poNumber = generatePoNumber();
@@ -111,7 +122,6 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         return mapToResponse(purchaseOrder);
     }
 
-    // ==================== API 2: Confirm Goods Receipt (Stock In) ====================
     @Override
     @Transactional
     public PurchaseOrderResponse receiveGoods(UUID purchaseOrderId, ReceiveGoodsRequest request, UUID updatedBy) {
@@ -137,7 +147,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             // 3. Create a map for quick lookup
             Map<UUID, ReceiveGoodsItemRequest> receiveItemMap = request.getItems().stream()
                     .collect(Collectors.toMap(
-                            ReceiveGoodsItemRequest::getProductVariantId,
+                            item -> item.getProductVariantId() != null ? item.getProductVariantId() : item.getPartComponentId(),
                             item -> item
                     ));
 
@@ -145,26 +155,39 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             List<DiscrepancyRecord> discrepancies = new ArrayList<>();
 
             for (PurchaseOrderItem item : purchaseOrder.getItems()) {
-                UUID productVariantId = item.getProductVariant().getId();
-                ReceiveGoodsItemRequest receiveItem = receiveItemMap.get(productVariantId);
-                
-                if (receiveItem == null) {
-                    continue;
+
+                // Xác định ID và SKU/Name để xử lý
+                UUID itemId;
+                String itemSkuOrName;
+                boolean isProduct = item.getProductVariant() != null;
+
+                if (isProduct) {
+                    itemId = item.getProductVariant().getId();
+                    itemSkuOrName = item.getProductVariant().getSku();
+                } else {
+                    itemId = item.getPartComponent().getId(); // Lấy ID từ Part
+                    itemSkuOrName = item.getPartComponent().getName();
                 }
-                
+
+                // Lấy request tương ứng từ Map
+                ReceiveGoodsItemRequest receiveItem = receiveItemMap.get(itemId);
+
+                if (receiveItem == null) {
+                    continue; // Skip if no receipt info provided for this item
+                }
+
                 Integer quantityReceived = receiveItem.getQuantityReceived();
                 List<String> serialNumbers = receiveItem.getSerialNumbers();
 
-                // 4.1 Validate Serial Numbers
-                if (serialNumbers != null && !serialNumbers.isEmpty()) {
+                // 4.1 Validate Serial Numbers (Chỉ dành cho Product)
+                if (isProduct && serialNumbers != null && !serialNumbers.isEmpty()) {
                     if (serialNumbers.size() != quantityReceived) {
                         throw new BadRequestException(
-                            String.format("Quantity and Serial count mismatch for SKU %s. Expected: %d, Got: %d",
-                                item.getProductVariant().getSku(), quantityReceived, serialNumbers.size())
+                                String.format("Quantity and Serial count mismatch for SKU %s. Expected: %d, Got: %d",
+                                        itemSkuOrName, quantityReceived, serialNumbers.size())
                         );
                     }
-                    
-                    // Check for duplicate serial numbers
+                    // Check trùng serial
                     for (String serialNumber : serialNumbers) {
                         if (productSerialRepository.existsBySerialNumber(serialNumber)) {
                             throw new BadRequestException("Serial number already exists: " + serialNumber);
@@ -172,55 +195,37 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                     }
                 }
 
-                // 4.2 Update quantity_received in purchase_order_items
+                // 4.2 Update quantity_received
                 item.setQuantityReceived(quantityReceived);
                 item.setUpdatedBy(updatedBy);
 
-                // 4.3 Save Serial Numbers (if provided)
-                if (serialNumbers != null && !serialNumbers.isEmpty()) {
+                // 4.3 Save Serial Numbers (Chỉ cho Product)
+                if (isProduct && serialNumbers != null && !serialNumbers.isEmpty()) {
                     for (String serialNumber : serialNumbers) {
                         ProductSerial productSerial = ProductSerial.builder()
                                 .productVariant(item.getProductVariant())
                                 .serialNumber(serialNumber)
-                                .status(com.example.viti_be.model.model_enum.ProductSerialStatus.AVAILABLE)
+                                .status(ProductSerialStatus.AVAILABLE)
                                 .purchaseOrderId(purchaseOrder.getId())
                                 .build();
                         productSerialRepository.save(productSerial);
                     }
-                    logger.info("Saved {} serial numbers for variant {}", serialNumbers.size(), item.getProductVariant().getSku());
                 }
 
-                // 4.4 Update Inventory
-                Inventory inventory = inventoryService.getOrCreateInventory(productVariantId, updatedBy);
-                int quantityBefore = inventory.getQuantityPhysical();
-
-                inventory.addStock(quantityReceived);
-                inventory.setUpdatedBy(updatedBy);
-                inventoryRepository.save(inventory);
-
-                // 4.5 Record Stock Transaction
-                StockTransaction transaction = StockTransaction.builder()
-                        .inventory(inventory)
-                        .type(StockTransactionType.STOCK_IN)
-                        .quantity(quantityReceived)
-                        .quantityBefore(quantityBefore)
-                        .quantityAfter(inventory.getQuantityPhysical())
-                        .reason("Stock In from PO: " + purchaseOrder.getPoNumber())
-                        .referenceId(purchaseOrder.getPoNumber())
-                        .createdBy(updatedBy)
-                        .build();
-                stockTransactionRepository.save(transaction);
-
-                // 4.6 Calculate Moving Average Cost (MAC)
-                updateMovingAveragePrice(item.getProductVariant(), quantityBefore, quantityReceived, item.getUnitPrice());
+                // 4.4 Update Inventory & 4.5 Record Transaction & 4.6 MAC
+                if (isProduct) {
+                    processProductStockIn(item.getProductVariant(), quantityReceived, purchaseOrder.getPoNumber(), item.getUnitPrice(), updatedBy);
+                } else {
+                    processPartStockIn(item.getPartComponent(), quantityReceived, purchaseOrder.getPoNumber(), item.getUnitPrice(), updatedBy);
+                }
 
                 // 4.7 Check for discrepancy
                 if (!quantityReceived.equals(item.getQuantityOrdered())) {
                     discrepancies.add(new DiscrepancyRecord(
-                            productVariantId,
+                            itemId,
                             item.getQuantityOrdered(),
                             quantityReceived,
-                            item.getProductVariant().getSku()
+                            itemSkuOrName
                     ));
                 }
             }
@@ -322,12 +327,21 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     /**
-     * Validate all product variants exist
+     * Validate all items (product variants or part components) exist
      */
-    private void validateProductVariants(List<PurchaseOrderItemRequest> items) {
+    private void validatePurchaseOrderItems(List<PurchaseOrderItemRequest> items) {
         for (PurchaseOrderItemRequest item : items) {
-            if (!productVariantRepository.existsById(item.getProductVariantId())) {
-                throw new ResourceNotFoundException("Product Variant not found with ID: " + item.getProductVariantId());
+            if (item.getProductVariantId() != null) {
+                if (!productVariantRepository.existsById(item.getProductVariantId())) {
+                    throw new ResourceNotFoundException("Product Variant not found with ID: " + item.getProductVariantId());
+                }
+            } else if (item.getPartComponentId() != null) {
+                // SỬA: Thêm logic check PartComponent
+                if (!partComponentRepository.existsById(item.getPartComponentId())) {
+                    throw new ResourceNotFoundException("Part Component not found with ID: " + item.getPartComponentId());
+                }
+            } else {
+                throw new BadRequestException("Item must contain either ProductVariantId or PartComponentId");
             }
         }
     }
@@ -341,19 +355,25 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             UUID createdBy) {
         
         return itemRequests.stream().map(itemRequest -> {
-            ProductVariant productVariant = productVariantRepository.findById(itemRequest.getProductVariantId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product Variant not found"));
-
-            PurchaseOrderItem item = PurchaseOrderItem.builder()
+            PurchaseOrderItem.PurchaseOrderItemBuilder builder = PurchaseOrderItem.builder()
                     .purchaseOrder(purchaseOrder)
-                    .productVariant(productVariant)
                     .quantityOrdered(itemRequest.getQuantityOrdered())
                     .unitPrice(itemRequest.getUnitPrice())
-                    .warrantyPeriod(itemRequest.getWarrantyPeriod())
-                    .referenceTicketId(itemRequest.getReferenceTicketId())
-                    .createdBy(createdBy)
-                    .build();
+                    .createdBy(createdBy);
 
+            if (itemRequest.getProductVariantId() != null) {
+                ProductVariant variant = productVariantRepository.findById(itemRequest.getProductVariantId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Variant not found"));
+                builder.productVariant(variant);
+            } else if (itemRequest.getPartComponentId() != null) {
+                PartComponent part = partComponentRepository.findById(itemRequest.getPartComponentId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Part not found"));
+                builder.partComponent(part);
+            } else {
+                throw new BadRequestException("Item must have Product or Part ID");
+            }
+
+            PurchaseOrderItem item = builder.build();
             item.calculateSubtotal();
             return item;
         }).collect(Collectors.toList());
@@ -363,7 +383,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
      * Calculate and update Moving Average Cost (MAC)
      * Formula: New_Avg_Price = ((Current_Qty * Current_Avg_Price) + (Received_Qty * Import_Price)) / (Current_Qty + Received_Qty)
      */
-    private void updateMovingAveragePrice(ProductVariant productVariant, int currentQty, int receivedQty, BigDecimal importPrice) {
+    private void updateProductMovingAveragePrice(ProductVariant productVariant, int currentQty, int receivedQty, BigDecimal importPrice) {
         if (receivedQty <= 0) {
             return; // No update needed if no quantity received
         }
@@ -395,6 +415,44 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         logger.debug("Updated MAC for variant {}: {} -> {}", 
                 productVariant.getSku(), currentAvgPrice, newAvgPrice);
+    }
+
+    /**
+     * Cập nhật giá vốn trung bình cho Linh kiện (PartComponent)
+     */
+    private void updatePartMovingAveragePrice(PartComponent part, int currentQty, int receivedQty, BigDecimal importPrice) {
+        if (receivedQty <= 0) {
+            return;
+        }
+
+        BigDecimal currentAvgPrice = part.getPurchasePriceAvg();
+        if (currentAvgPrice == null) {
+            currentAvgPrice = BigDecimal.ZERO;
+        }
+
+        BigDecimal newAvgPrice;
+        int totalQty = currentQty + receivedQty;
+
+        if (totalQty == 0) {
+            newAvgPrice = importPrice;
+        } else if (currentQty == 0) {
+            newAvgPrice = importPrice;
+        } else {
+            // Công thức: (Tồn cũ * Giá cũ + Nhập mới * Giá nhập) / Tổng tồn
+            BigDecimal currentValue = currentAvgPrice.multiply(BigDecimal.valueOf(currentQty));
+            BigDecimal receivedValue = importPrice.multiply(BigDecimal.valueOf(receivedQty));
+            newAvgPrice = currentValue.add(receivedValue)
+                    .divide(BigDecimal.valueOf(totalQty), 2, RoundingMode.HALF_UP);
+        }
+
+        part.setPurchasePriceAvg(newAvgPrice);
+        BigDecimal markupPercent = systemConfigService.getPartMarkupPercent();
+        BigDecimal multiplier = BigDecimal.ONE.add(markupPercent.divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+        BigDecimal newSellingPrice = newAvgPrice.multiply(multiplier);
+        part.setSellingPrice(newSellingPrice);
+        partComponentRepository.save(part);
+
+        logger.debug("Updated Part MAC for {}: {} -> {}", part.getName(), currentAvgPrice, newAvgPrice);
     }
 
     /**
@@ -477,20 +535,51 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
      * Map PurchaseOrderItem entity to PurchaseOrderItemResponse DTO
      */
     private PurchaseOrderItemResponse mapItemToResponse(PurchaseOrderItem item) {
-        ProductVariant pv = item.getProductVariant();
-        
-        PurchaseOrderItemResponse.ProductVariantInfo pvInfo = PurchaseOrderItemResponse.ProductVariantInfo.builder()
-                .id(pv.getId())
-                .sku(pv.getSku())
-                .variantName(pv.getVariantName())
-                .productName(pv.getProduct() != null ? pv.getProduct().getName() : null)
-                .purchasePriceAvg(pv.getPurchasePriceAvg())
-                .sellingPrice(pv.getSellingPrice())
-                .build();
+        // 1. Xử lý Product Variant (Có thể null)
+        PurchaseOrderItemResponse.ProductVariantInfo pvInfo = null;
+        if (item.getProductVariant() != null) {
+            ProductVariant pv = item.getProductVariant();
+            pvInfo = PurchaseOrderItemResponse.ProductVariantInfo.builder()
+                    .id(pv.getId())
+                    .sku(pv.getSku())
+                    .variantName(pv.getVariantName())
+                    .productName(pv.getProduct() != null ? pv.getProduct().getName() : null)
+                    .purchasePriceAvg(pv.getPurchasePriceAvg())
+                    .sellingPrice(pv.getSellingPrice())
+                    .build();
+        }
 
+        // 2. Xử lý Part Component
+        PartComponentResponse partInfo = null;
+        if (item.getPartComponent() != null) {
+            PartComponent pc = item.getPartComponent();
+
+            // Map Supplier info nhỏ cho Part
+            PartComponentResponse.SupplierInfo supplierInfo = null;
+            if (pc.getSupplier() != null) {
+                supplierInfo = PartComponentResponse.SupplierInfo.builder()
+                        .supplierId(pc.getSupplier().getId())
+                        .name(pc.getSupplier().getName())
+                        .build();
+            }
+
+            partInfo = PartComponentResponse.builder()
+                    .id(pc.getId())
+                    .name(pc.getName())
+                    .partType(pc.getPartType())
+                    .unit(pc.getUnit())
+                    .supplier(supplierInfo)
+                    .purchasePriceAvg(pc.getPurchasePriceAvg())
+                    .sellingPrice(pc.getSellingPrice())
+                    .minStock(pc.getMinStock())
+                    .build();
+        }
+
+        // 3. Trả về Response
         return PurchaseOrderItemResponse.builder()
                 .id(item.getId())
-                .productVariant(pvInfo)
+                .productVariant(pvInfo)       // Field này null nếu là Part
+                .partComponent(partInfo)      // Field này null nếu là Product
                 .quantityOrdered(item.getQuantityOrdered())
                 .quantityReceived(item.getQuantityReceived())
                 .unitPrice(item.getUnitPrice())
@@ -515,5 +604,45 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             this.received = received;
             this.sku = sku;
         }
+    }
+
+    private void processProductStockIn(ProductVariant variant, int quantity, String poNumber, BigDecimal unitPrice, UUID actorId) {
+        Inventory inventory = inventoryService.getOrCreateInventory(variant.getId(), actorId);
+        int quantityBefore = inventory.getQuantityPhysical();
+
+        inventory.addStock(quantity);
+        inventory.setUpdatedBy(actorId);
+        inventoryRepository.save(inventory);
+
+        saveStockTransaction(inventory, quantity, quantityBefore, poNumber, actorId);
+        updateProductMovingAveragePrice(variant, quantityBefore, quantity, unitPrice);
+    }
+
+    private void processPartStockIn(PartComponent part, int quantity, String poNumber, BigDecimal unitPrice, UUID actorId) {
+        // Sử dụng hàm getOrCreatePartInventory bạn đã viết bên InventoryService
+        Inventory inventory = inventoryService.getOrCreatePartInventory(part.getId(), actorId);
+        int quantityBefore = inventory.getQuantityPhysical();
+
+        inventory.addStock(quantity);
+        inventory.setUpdatedBy(actorId);
+        inventoryRepository.save(inventory);
+
+        saveStockTransaction(inventory, quantity, quantityBefore, poNumber, actorId);
+        updatePartMovingAveragePrice(part, quantityBefore, quantity, unitPrice);
+    }
+
+    // Hàm lưu transaction chung
+    private void saveStockTransaction(Inventory inventory, int quantity, int qtyBefore, String poNumber, UUID actorId) {
+        StockTransaction transaction = StockTransaction.builder()
+                .inventory(inventory)
+                .type(StockTransactionType.STOCK_IN)
+                .quantity(quantity)
+                .quantityBefore(qtyBefore)
+                .quantityAfter(inventory.getQuantityPhysical())
+                .reason("Stock In from PO: " + poNumber)
+                .referenceId(poNumber)
+                .createdBy(actorId)
+                .build();
+        stockTransactionRepository.save(transaction);
     }
 }

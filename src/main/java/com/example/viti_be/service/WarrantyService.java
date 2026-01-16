@@ -198,27 +198,4 @@ public interface WarrantyService {
      * @return Lịch sử đổi status
      */
     List<TicketStatusHistoryResponse> getTicketStatusHistory(UUID ticketId);
-
-    // ========== REPAIR SERVICE & PART COMPONENT CRUD ==========
-
-    /**
-     * CRUD RepairService
-     */
-    RepairServiceResponse createRepairService(RepairServiceResponse request, UUID actorId);
-    RepairServiceResponse updateRepairService(UUID id, RepairServiceResponse request, UUID actorId);
-    void deleteRepairService(UUID id, UUID actorId);
-    RepairServiceResponse getRepairServiceById(UUID id);
-    List<RepairServiceResponse> getAllRepairServices();
-    List<RepairServiceResponse> getActiveRepairServices();
-
-    /**
-     * CRUD PartComponent
-     */
-    PartComponentResponse createPartComponent(PartComponentResponse request, UUID actorId);
-    PartComponentResponse updatePartComponent(UUID id, PartComponentResponse request, UUID actorId);
-    void deletePartComponent(UUID id, UUID actorId);
-    PartComponentResponse getPartComponentById(UUID id);
-    List<PartComponentResponse> getAllPartComponents();
-    List<PartComponentResponse> getActivePartComponents();
-    List<PartComponentResponse> getLowStockParts();
 }

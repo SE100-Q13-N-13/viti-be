@@ -23,10 +23,12 @@ public class RepairServiceRequest {
     @NotNull(message = "Standard price is required")
     private BigDecimal standardPrice;
 
-    private Integer estimatedMinutes;  // Thời gian ước tính (phút)
+    private String estimatedDuration;  // Thời gian ước tính (phút)
+
+    private String category; // VD: "Screen", "Battery", "Motherboard"
 
     @Builder.Default
-    private String status = "ACTIVE";  // ACTIVE, INACTIVE
+    private Boolean isActive = true;
 
     private String notes;
 }

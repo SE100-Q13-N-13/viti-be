@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -50,7 +51,6 @@ public class WarrantyServiceImpl implements WarrantyService {
     private final UserRepository userRepository;
     private final InventoryRepository inventoryRepository;
     private final AuditLogRepository auditLogRepository;
-    private final SupplierRepository supplierRepository;
 
     // Services
     private final InventoryService inventoryService;
@@ -149,7 +149,7 @@ public class WarrantyServiceImpl implements WarrantyService {
         productSerialRepository.save(serial);
 
         // 10. Save Ticket
-        WarrantyTicket savedTicket = ticketRepository.save(ticket);
+        WarrantyTicket savedTicket = ticketRepository.saveAndFlush(ticket);
 
         // 11. Audit Log
         auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.CREATE,
@@ -639,9 +639,14 @@ public class WarrantyServiceImpl implements WarrantyService {
         // Calculate selling price
         BigDecimal unitPrice = partReq.getUnitPrice();
         if (unitPrice == null) {
-            BigDecimal costPrice = partComponent.getUnitPrice();
-            unitPrice = costPrice.add(costPrice.multiply(markup)
-                    .divide(new BigDecimal(100), 2, RoundingMode.HALF_UP));
+            if (partComponent.getSellingPrice() != null && partComponent.getSellingPrice().compareTo(BigDecimal.ZERO) > 0) {
+                unitPrice = partComponent.getSellingPrice();
+            } else {
+                BigDecimal costPrice = partComponent.getPurchasePriceAvg();
+                unitPrice = costPrice.add(costPrice.multiply(markup)
+                        .divide(new BigDecimal(100), 2, RoundingMode.HALF_UP));
+            }
+
         }
 
         // Check inventory availability
@@ -826,244 +831,6 @@ public class WarrantyServiceImpl implements WarrantyService {
     }
 
     // ========================================
-    // REPAIR SERVICE CRUD
-    // ========================================
-
-    @Override
-    @Transactional
-    public RepairServiceResponse createRepairService(RepairServiceResponse request, UUID actorId) {
-        log.info("Creating repair service: {}", request.getName());
-
-        RepairService repairService = RepairService.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .standardPrice(request.getStandardPrice())
-                .estimatedDuration(request.getEstimatedDuration())
-                .category(request.getCategory())
-                .isActive(true)
-                .build();
-
-        repairService.setCreatedBy(actorId);
-        RepairService saved = repairServiceRepository.save(repairService);
-
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.CREATE,
-                saved.getId().toString(), "repair_service", null,
-                saved.getName(), "SUCCESS");
-
-        return mapper.toRepairServiceResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public RepairServiceResponse updateRepairService(UUID id, RepairServiceResponse request, UUID actorId) {
-        RepairService repairService = repairServiceRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Repair service not found: " + id));
-
-        String oldName = repairService.getName();
-
-        // Update fields
-        if (request.getName() != null) repairService.setName(request.getName());
-        if (request.getDescription() != null) repairService.setDescription(request.getDescription());
-        if (request.getStandardPrice() != null) repairService.setStandardPrice(request.getStandardPrice());
-        if (request.getEstimatedDuration() != null) repairService.setEstimatedDuration(request.getEstimatedDuration());
-        if (request.getCategory() != null) repairService.setCategory(request.getCategory());
-        if (request.getIsActive() != null) repairService.setIsActive(request.getIsActive());
-
-        repairService.setUpdatedBy(actorId);
-        RepairService saved = repairServiceRepository.save(repairService);
-
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
-                id.toString(), "repair_service", oldName,
-                saved.getName(), "SUCCESS");
-
-        return mapper.toRepairServiceResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public void deleteRepairService(UUID id, UUID actorId) {
-        RepairService repairService = repairServiceRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Repair service not found: " + id));
-
-        repairService.setIsDeleted(true);
-        repairService.setUpdatedBy(actorId);
-        repairServiceRepository.save(repairService);
-
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.DELETE,
-                id.toString(), "repair_service", repairService.getName(),
-                null, "SUCCESS");
-
-        log.info("Deleted repair service: {}", repairService.getName());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public RepairServiceResponse getRepairServiceById(UUID id) {
-        RepairService repairService = repairServiceRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Repair service not found: " + id));
-        return mapper.toRepairServiceResponse(repairService);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<RepairServiceResponse> getAllRepairServices() {
-        List<RepairService> services = repairServiceRepository.findAllByIsDeletedFalseOrderByName();
-        return mapper.toRepairServiceResponseList(services);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<RepairServiceResponse> getActiveRepairServices() {
-        List<RepairService> services = repairServiceRepository.findByIsActiveTrueAndIsDeletedFalseOrderByName();
-        return mapper.toRepairServiceResponseList(services);
-    }
-
-    // ========================================
-    // PART COMPONENT CRUD
-    // ========================================
-
-    @Override
-    @Transactional
-    public PartComponentResponse createPartComponent(PartComponentResponse request, UUID actorId) {
-        log.info("Creating part component: {}", request.getName());
-
-        // Get supplier if provided
-        Supplier supplier = null;
-        if (request.getSupplier() != null && request.getSupplier().getSupplierId() != null) {
-            supplier = supplierRepository.findById(request.getSupplier().getSupplierId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
-        }
-
-        PartComponent partComponent = PartComponent.builder()
-                .name(request.getName())
-                .partType(request.getPartType())
-                .supplier(supplier)
-                .unit(request.getUnit())
-                .unitPrice(request.getUnitPrice())
-                .minStock(request.getMinStock())
-                .isActive(true)
-                .build();
-
-        partComponent.setCreatedBy(actorId);
-        PartComponent saved = partComponentRepository.save(partComponent);
-
-        // Create inventory record
-        Inventory inventory = Inventory.builder()
-                .partComponentId(saved.getId())
-                .quantityPhysical(0)
-                .quantityReserved(0)
-                .quantityAvailable(0)
-                .minThreshold(saved.getMinStock())
-                .lastCountedAt(LocalDateTime.now())
-                .build();
-        inventory.setCreatedBy(actorId);
-        inventoryRepository.save(inventory);
-
-        auditLogService.log(actorId, AuditModule.INVENTORY, AuditAction.CREATE,
-                saved.getId().toString(), "part_component", null,
-                saved.getName(), "SUCCESS");
-
-        // Map response
-        PartComponentResponse response = mapper.toPartComponentResponse(saved);
-        response.setCurrentStock(0);
-        return response;
-    }
-
-    @Override
-    @Transactional
-    public PartComponentResponse updatePartComponent(UUID id, PartComponentResponse request, UUID actorId) {
-        PartComponent partComponent = partComponentRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Part component not found: " + id));
-
-        String oldName = partComponent.getName();
-
-        // Update supplier if changed
-        if (request.getSupplier() != null && request.getSupplier().getSupplierId() != null) {
-            Supplier supplier = supplierRepository.findById(request.getSupplier().getSupplierId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Supplier not found"));
-            partComponent.setSupplier(supplier);
-        }
-
-        // Update fields
-        if (request.getName() != null) partComponent.setName(request.getName());
-        if (request.getPartType() != null) partComponent.setPartType(request.getPartType());
-        if (request.getUnit() != null) partComponent.setUnit(request.getUnit());
-        if (request.getUnitPrice() != null) partComponent.setUnitPrice(request.getUnitPrice());
-        if (request.getMinStock() != null) partComponent.setMinStock(request.getMinStock());
-        if (request.getIsActive() != null) partComponent.setIsActive(request.getIsActive());
-
-        partComponent.setUpdatedBy(actorId);
-        PartComponent saved = partComponentRepository.save(partComponent);
-
-        auditLogService.log(actorId, AuditModule.INVENTORY, AuditAction.UPDATE,
-                id.toString(), "part_component", oldName,
-                saved.getName(), "SUCCESS");
-
-        // Get current stock
-        Integer currentStock = inventoryRepository.findByPartComponentId(id)
-                .map(Inventory::getQuantityAvailable)
-                .orElse(0);
-
-        PartComponentResponse response = mapper.toPartComponentResponse(saved);
-        response.setCurrentStock(currentStock);
-        return response;
-    }
-
-    @Override
-    @Transactional
-    public void deletePartComponent(UUID id, UUID actorId) {
-        PartComponent partComponent = partComponentRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Part component not found: " + id));
-
-        partComponent.setIsDeleted(true);
-        partComponent.setUpdatedBy(actorId);
-        partComponentRepository.save(partComponent);
-
-        auditLogService.log(actorId, AuditModule.INVENTORY, AuditAction.DELETE,
-                id.toString(), "part_component", partComponent.getName(),
-                null, "SUCCESS");
-
-        log.info("Deleted part component: {}", partComponent.getName());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PartComponentResponse getPartComponentById(UUID id) {
-        PartComponent partComponent = partComponentRepository.findByIdAndIsDeletedFalse(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Part component not found: " + id));
-
-        // Get current stock
-        Integer currentStock = inventoryRepository.findByPartComponentId(id)
-                .map(Inventory::getQuantityAvailable)
-                .orElse(0);
-
-        PartComponentResponse response = mapper.toPartComponentResponse(partComponent);
-        response.setCurrentStock(currentStock);
-        return response;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PartComponentResponse> getAllPartComponents() {
-        List<PartComponent> components = partComponentRepository.findAllByIsDeletedFalseOrderByName();
-        return enrichPartComponentsWithStock(components);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PartComponentResponse> getActivePartComponents() {
-        List<PartComponent> components = partComponentRepository.findByIsActiveTrueAndIsDeletedFalseOrderByName();
-        return enrichPartComponentsWithStock(components);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PartComponentResponse> getLowStockParts() {
-        List<PartComponent> lowStockParts = partComponentRepository.findLowStockParts();
-        return enrichPartComponentsWithStock(lowStockParts);
-    }
-
-    // ========================================
     // PRIVATE HELPER METHODS
     // ========================================
 
@@ -1104,24 +871,5 @@ public class WarrantyServiceImpl implements WarrantyService {
             log.warn("Invalid status string: {}", statusStr);
             return null;
         }
-    }
-
-    /**
-     * Enrich part components with current stock from inventory
-     */
-    private List<PartComponentResponse> enrichPartComponentsWithStock(List<PartComponent> components) {
-        return components.stream()
-                .map(component -> {
-                    PartComponentResponse response = mapper.toPartComponentResponse(component);
-
-                    // Get current stock
-                    Integer currentStock = inventoryRepository.findByPartComponentId(component.getId())
-                            .map(Inventory::getQuantityAvailable)
-                            .orElse(0);
-
-                    response.setCurrentStock(currentStock);
-                    return response;
-                })
-                .collect(Collectors.toList());
     }
 }
