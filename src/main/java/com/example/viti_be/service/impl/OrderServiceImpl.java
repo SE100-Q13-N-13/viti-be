@@ -3,6 +3,7 @@ package com.example.viti_be.service.impl;
 import com.example.viti_be.dto.request.CustomerRequest;
 import com.example.viti_be.dto.response.CustomerResponse;
 import com.example.viti_be.dto.response.LoyaltyConfigResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.mapper.OrderMapper;
 import com.example.viti_be.dto.request.CreateOrderRequest;
 import com.example.viti_be.dto.request.OrderItemRequest;
@@ -86,6 +87,10 @@ public class OrderServiceImpl implements OrderService {
                 if (customerId != null) {
                     customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
                             .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+                }
+                else {
+                    customer = createGuestCustomer(request);
+                    customerId = customer.getId();
                 }
                 break;
 
@@ -200,7 +205,20 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Order must have at least one item");
         }
 
-        // 2. Validate ONLINE order
+        // 2. Validate OFFLINE order
+        if (request.getOrderType() == OrderType.OFFLINE) {
+            // Nếu không có customerId, bắt buộc có guest info
+            if (resolvedCustomerId == null) {
+                if (request.getGuestName() == null || request.getGuestName().trim().isEmpty()) {
+                    throw new BadRequestException("Guest name is required for offline guest order");
+                }
+                if (request.getGuestPhone() == null || request.getGuestPhone().trim().isEmpty()) {
+                    throw new BadRequestException("Guest phone is required for offline guest order");
+                }
+            }
+        }
+
+        // 3. Validate ONLINE order
         if (request.getOrderType() == OrderType.ONLINE_COD ||
                 request.getOrderType() == OrderType.ONLINE_TRANSFER) {
 
@@ -223,7 +241,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 3. Validate loyalty points (chỉ cho registered customer)
+        // 4. Validate loyalty points (chỉ cho registered customer)
         if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
             if (resolvedCustomerId == null) {
                 throw new BadRequestException("Guest checkout cannot use loyalty points");
@@ -233,6 +251,7 @@ public class OrderServiceImpl implements OrderService {
 
     // ========== UPDATE calculateOrderTotal signature ==========
     private void calculateOrderTotal(Order order, CreateOrderRequest request) {
+        // 1. Subtotal từ items (đã bao gồm manual discount)
         BigDecimal subtotal = order.getItems().stream()
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -240,11 +259,12 @@ public class OrderServiceImpl implements OrderService {
 
         BigDecimal totalDiscount = BigDecimal.ZERO;
 
-        // Tier Discount
+        // 2. Tier Discount (áp dụng đầu tiên)
+        BigDecimal tierDiscount = BigDecimal.ZERO;
         if (order.getCustomer() != null && order.getCustomer().getTier() != null) {
             BigDecimal tierRate = order.getCustomer().getTier().getDiscountRate();
             if (tierRate != null && tierRate.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal tierDiscount = subtotal.multiply(tierRate)
+                tierDiscount = subtotal.multiply(tierRate)
                         .divide(new BigDecimal(100), 2, RoundingMode.HALF_DOWN);
                 order.setTierDiscountRate(tierRate);
                 order.setTierDiscountAmount(tierDiscount);
@@ -252,20 +272,58 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // Loyalty Points (Snapshot only, actual deduction in CONFIRMED)
-        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
-            LoyaltyConfigResponse config = loyaltyPointService.getLoyaltyConfig();
-            BigDecimal pointRate = new BigDecimal(config.getRedeemRate());
-            BigDecimal pointsDiscount = loyaltyPointService.calculateRedemptionAmount(
-                    request.getLoyaltyPointsToUse()
-            );
-
-            order.setLoyaltyPointsUsed(request.getLoyaltyPointsToUse());
-            order.setPointDiscountAmount(pointsDiscount);
-            order.setPointRateSnapshot(pointRate);
-            totalDiscount = totalDiscount.add(pointsDiscount);
+        // 3. Promotion Discount (TODO: Implement when needed)
+        BigDecimal promotionDiscount = BigDecimal.ZERO;
+        if (request.getPromotionIds() != null && !request.getPromotionIds().isEmpty()) {
+            // promotionDiscount = calculatePromotionDiscount(order, request.getPromotionIds());
+            // totalDiscount = totalDiscount.add(promotionDiscount);
         }
 
+        // 4. Loyalty Points Discount (áp dụng sau cùng)
+        BigDecimal pointsDiscount = BigDecimal.ZERO;
+        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
+            // Validate customer có đủ điểm không
+            if (order.getCustomer() != null) {
+                LoyaltyPoint loyaltyPoint = loyaltyPointRepository.findByCustomerId(order.getCustomer().getId())
+                        .orElse(null);
+
+                if (loyaltyPoint == null || loyaltyPoint.getPointsAvailable() < request.getLoyaltyPointsToUse()) {
+                    throw new BadRequestException(
+                            String.format("Insufficient loyalty points. Available: %d, Requested: %d",
+                                    loyaltyPoint != null ? loyaltyPoint.getPointsAvailable() : 0,
+                                    request.getLoyaltyPointsToUse())
+                    );
+                }
+
+                // Get config và tính discount
+                LoyaltyConfigResponse config = loyaltyPointService.getLoyaltyConfig();
+                BigDecimal pointRate = new BigDecimal(config.getRedeemRate());
+
+                // Calculate amount after tier and promotion discounts
+                BigDecimal amountAfterDiscounts = subtotal.subtract(tierDiscount).subtract(promotionDiscount);
+
+                // Validate redemption amount
+                loyaltyPointService.validateRedemption(
+                        order.getCustomer().getId(),
+                        request.getLoyaltyPointsToUse(),
+                        amountAfterDiscounts
+                );
+
+                pointsDiscount = loyaltyPointService.calculateRedemptionAmount(
+                        request.getLoyaltyPointsToUse()
+                );
+
+                // Không cho phép discount vượt quá số tiền còn lại
+                pointsDiscount = pointsDiscount.min(amountAfterDiscounts);
+
+                order.setLoyaltyPointsUsed(request.getLoyaltyPointsToUse());
+                order.setPointDiscountAmount(pointsDiscount);
+                order.setPointRateSnapshot(pointRate);
+                totalDiscount = totalDiscount.add(pointsDiscount);
+            }
+        }
+
+        // 5. Final calculation
         order.setTotalDiscount(totalDiscount);
         order.setFinalAmount(subtotal.subtract(totalDiscount).max(BigDecimal.ZERO));
     }
@@ -340,7 +398,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Page<OrderResponse> getOrdersByUserId(UUID userId, Pageable pageable) {
+    public PageResponse<OrderResponse> getOrdersByUserId(UUID userId, Pageable pageable) {
         // 1. Kiểm tra xem User này có phải là Customer không
         Optional<Customer> customerOpt = customerRepository.findByUser_Id(userId);
 
@@ -356,7 +414,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 2. Map Entity sang Response DTO
-        return orderPage.map(OrderMapper::mapToOrderResponse);
+        return PageResponse.from(orderPage, OrderMapper::mapToOrderResponse);
     }
 
     private List<OrderItem> processOrderItems(List<OrderItemRequest> itemRequests, Order order, UUID actorId) {
@@ -421,80 +479,6 @@ public class OrderServiceImpl implements OrderService {
             }
         }
         return finalOrderItems;
-    }
-
-    private Order buildInitialOrder(CreateOrderRequest request, Customer customer, User employee) {
-        Order order = Order.builder()
-                .orderNumber(generateOrderNumber())
-                .customer(customer)
-                .employee(employee)
-                .orderType(request.getOrderType())
-                .status(OrderStatus.PENDING)
-                .paymentMethod(request.getPaymentMethod())
-                .build();
-
-        // Snapshot hạng thành viên
-        if (customer != null && customer.getTier() != null) {
-            order.setTierName(customer.getTier().getName());
-        }
-        return order;
-    }
-    private void calculateOrderFinancials(Order order, CreateOrderRequest request) {
-        // 1. Tổng tiền hàng (đã trừ manual discount ở item)
-        BigDecimal subtotal = order.getItems().stream()
-                .map(OrderItem::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        order.setSubtotal(subtotal);
-
-        // 2. Tính Discount khác (Voucher, Promotion, Rank, Point)
-        BigDecimal totalSystemDiscount = BigDecimal.ZERO;
-
-        BigDecimal pointsDiscount = BigDecimal.ZERO;
-        BigDecimal promotionDiscount = BigDecimal.ZERO;
-
-        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
-            // Lấy config hiện tại để lưu snapshot
-            LoyaltyConfigResponse loyaltyConfig = loyaltyPointService.getLoyaltyConfig();
-            BigDecimal currentPointRate = new BigDecimal(loyaltyConfig.getRedeemRate());
-
-            // Validate và tính toán
-            loyaltyPointService.validateRedemption(
-                    request.getCustomerId(),
-                    request.getLoyaltyPointsToUse(),
-                    subtotal.subtract(promotionDiscount)
-            );
-
-            pointsDiscount = loyaltyPointService.calculateRedemptionAmount(
-                    request.getLoyaltyPointsToUse()
-            );
-
-            order.setLoyaltyPointsUsed(request.getLoyaltyPointsToUse());
-            order.setPointDiscountAmount(pointsDiscount);
-
-            // Lưu tỷ lệ quy đổi tại thời điểm mua
-            order.setPointRateSnapshot(currentPointRate);
-        }
-
-        BigDecimal tierDiscount = BigDecimal.ZERO;
-        if (order.getCustomer() != null && order.getCustomer().getTier() != null) {
-            BigDecimal tierRate = order.getCustomer().getTier().getDiscountRate();
-            if (tierRate != null && tierRate.compareTo(BigDecimal.ZERO) > 0) {
-                // Tier discount áp dụng trên subtotal (trước promotions)
-                tierDiscount = subtotal.multiply(tierRate)
-                        .divide(new BigDecimal(100), 2, RoundingMode.HALF_DOWN);
-
-                order.setTierDiscountRate(tierRate);
-                order.setTierDiscountAmount(tierDiscount);
-            }
-        }
-
-        // 5. Total Discount = Tier + Promotion + Points
-        BigDecimal totalDiscount = tierDiscount.add(promotionDiscount).add(pointsDiscount);
-        order.setTotalDiscount(totalDiscount);
-
-        // 6. Final Amount = Subtotal - Total Discount
-        BigDecimal finalAmount = subtotal.subtract(totalDiscount);
-        order.setFinalAmount(finalAmount.max(BigDecimal.ZERO));
     }
 
     private void validateStatusTransition(OrderStatus oldStatus, OrderStatus newStatus) {
@@ -624,9 +608,26 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private Customer createGuestCustomer(CreateOrderRequest request) {
+        // Validate guest info
+        if (request.getGuestPhone() == null || request.getGuestPhone().isBlank()) {
+            throw new BadRequestException("Guest phone is required");
+        }
+
+        if (request.getGuestName() == null || request.getGuestName().isBlank()) {
+            throw new BadRequestException("Guest name is required");
+        }
+
         // Kiểm tra phone đã tồn tại chưa
-        if (customerRepository.existsByPhone(request.getGuestPhone())) {
-            throw new BadRequestException("Phone number already exists");
+        Optional<Customer> existingCustomer = customerRepository.findByPhoneAndIsDeletedFalse(request.getGuestPhone());
+        if (existingCustomer.isPresent()) {
+            log.info("Found existing customer with phone: {}", request.getGuestPhone());
+            // Update email nếu có thông tin mới
+            Customer customer = existingCustomer.get();
+            if (request.getGuestEmail() != null && !request.getGuestEmail().isBlank()) {
+                customer.setEmail(request.getGuestEmail());
+                customerRepository.save(customer);
+            }
+            return customer;
         }
 
         // Tạo CustomerRequest từ guest info
@@ -641,7 +642,111 @@ public class OrderServiceImpl implements OrderService {
 
         // Lấy lại Customer entity
         return customerRepository.findById(customerResponse.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Failed to create customer"));
+                .orElseThrow(() -> new ResourceNotFoundException("Failed to create guest customer"));
+    }
+
+    private BigDecimal applyPromotions(Order order, List<UUID> promotionIds) {
+        if (promotionIds == null || promotionIds.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalPromotionDiscount = BigDecimal.ZERO;
+        List<OrderPromotion> appliedPromotions = new ArrayList<>();
+
+        for (UUID promotionId : promotionIds) {
+            Promotion promotion = promotionRepository.findById(promotionId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Promotion not found: " + promotionId));
+
+            // Validate promotion is active
+            if (!isPromotionValid(promotion)) {
+                log.warn("Promotion {} is not valid, skipping", promotionId);
+                continue;
+            }
+
+            // Calculate discount for this promotion
+            BigDecimal discountAmount = calculatePromotionDiscount(order, promotion);
+
+            if (discountAmount.compareTo(BigDecimal.ZERO) > 0) {
+                // Create OrderPromotion record
+                OrderPromotion orderPromotion = OrderPromotion.builder()
+                        .order(order)
+                        .promotion(promotion)
+                        .discountAmount(discountAmount)
+                        .build();
+
+                appliedPromotions.add(orderPromotion);
+                totalPromotionDiscount = totalPromotionDiscount.add(discountAmount);
+            }
+        }
+
+        order.setAppliedPromotions(appliedPromotions);
+        return totalPromotionDiscount;
+    }
+
+    /**
+     * Validate if promotion is currently active and applicable
+     */
+    private boolean isPromotionValid(Promotion promotion) {
+        LocalDateTime now = LocalDateTime.now();
+
+        // Check dates
+        if (promotion.getStartDate() != null && now.isBefore(promotion.getStartDate())) {
+            return false;
+        }
+        if (promotion.getEndDate() != null && now.isAfter(promotion.getEndDate())) {
+            return false;
+        }
+
+        // Check status
+        if (promotion.getStatus() == null || !promotion.getStatus().name().equals("ACTIVE")) {
+            return false;
+        }
+
+        // Check usage limit
+        if (promotion.getUsageLimit() != null &&
+                promotion.getUsageCount() != null &&
+                promotion.getUsageCount() >= promotion.getUsageLimit()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Calculate discount amount for a specific promotion
+     */
+    private BigDecimal calculatePromotionDiscount(Order order, Promotion promotion) {
+        BigDecimal subtotal = order.getSubtotal();
+
+        // Check minimum order value
+        if (promotion.getMinOrderValue() != null &&
+                subtotal.compareTo(promotion.getMinOrderValue()) < 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal discount = BigDecimal.ZERO;
+
+        // Calculate based on promotion type
+        switch (promotion.getType()) {
+            case PERCENTAGE:
+                discount = subtotal.multiply(promotion.getValue())
+                        .divide(new BigDecimal(100), 2, RoundingMode.HALF_DOWN);
+
+                // Apply max discount cap if exists
+                if (promotion.getMaxDiscountAmount() != null) {
+                    discount = discount.min(promotion.getMaxDiscountAmount());
+                }
+                break;
+
+            case FIXED_AMOUNT:
+                discount = promotion.getValue();
+                break;
+
+            default:
+                log.warn("Unknown promotion type: {}", promotion.getType());
+        }
+
+        return discount;
     }
 
     // TODO: Shipping logic
