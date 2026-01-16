@@ -25,9 +25,8 @@ public class OrderResponse {
     private String status;
     private String paymentMethod;
 
-    // TODO: Shipping logic
-//    private String shippingAddress; // Địa chỉ giao hàng
-//    private BigDecimal shippingFee; // Phí ship
+    private String shippingAddress; // Địa chỉ giao hàng
+    private BigDecimal shippingFee; // Phí ship
     
     private List<OrderItemResponse> items;
 

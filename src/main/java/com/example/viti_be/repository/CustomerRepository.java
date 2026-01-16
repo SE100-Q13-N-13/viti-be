@@ -19,6 +19,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     List<Customer> findByIsDeletedFalse();
 
     Optional<Customer> findByIdAndIsDeletedFalse(UUID id);
+    Optional<Customer> findByUserIdAndIsDeletedFalse(UUID userId);
 
     /**
      * Đếm số lượng customers đang ở tier này
@@ -36,4 +37,6 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
      */
     @Query("SELECT c FROM Customer c WHERE c.totalPurchase >= :minPurchase AND c.isDeleted = false")
     List<Customer> findCustomersWithMinPurchase(@Param("minPurchase") java.math.BigDecimal minPurchase);
+
+    Optional<Customer> findByUser_Id(UUID userId);
 }

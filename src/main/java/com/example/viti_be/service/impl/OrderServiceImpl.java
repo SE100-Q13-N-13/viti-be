@@ -1,5 +1,7 @@
 package com.example.viti_be.service.impl;
 
+import com.example.viti_be.dto.request.CustomerRequest;
+import com.example.viti_be.dto.response.CustomerResponse;
 import com.example.viti_be.dto.response.LoyaltyConfigResponse;
 import com.example.viti_be.mapper.OrderMapper;
 import com.example.viti_be.dto.request.CreateOrderRequest;
@@ -13,13 +15,12 @@ import com.example.viti_be.model.model_enum.AuditModule;
 import com.example.viti_be.model.model_enum.OrderStatus;
 import com.example.viti_be.model.model_enum.OrderType;
 import com.example.viti_be.repository.*;
-import com.example.viti_be.service.AuditLogService;
-import com.example.viti_be.service.InventoryService;
-import com.example.viti_be.service.LoyaltyPointService;
-import com.example.viti_be.service.OrderService;
+import com.example.viti_be.service.*;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -28,6 +29,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static com.example.viti_be.mapper.OrderMapper.mapToOrderResponse;
 
 @Service
 @Slf4j
@@ -44,47 +47,227 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private LoyaltyPointService loyaltyPointService;
     @Autowired private LoyaltyPointRepository loyaltyPointRepository;
     @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
+    @Autowired private CustomerService customerService;
 
     @Override
     public OrderResponse getOrderById(UUID id) {
         Order order = repo.findById(id).orElseThrow(() -> new RuntimeException("Can not find Order by ID: " + id));
-        return OrderMapper.mapToOrderResponse(order);
+        return mapToOrderResponse(order);
     }
     @Override
-    public List<OrderResponse> getAllOrders(){
-        return repo.findAll().stream()
-                .map(OrderMapper::mapToOrderResponse)
-                .collect(Collectors.toList());
+    public Page<OrderResponse> getAllOrders(Pageable pageable){
+        Page<Order> orderPage = repo.findAll(pageable);
+        return orderPage.map(OrderMapper::mapToOrderResponse);
     }
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request, UUID actorId) {
 
+        // ========== BƯỚC 1: Xác định employeeId và customerId dựa trên orderType ==========
+        UUID employeeId;
+        UUID customerId;
         Customer customer = null;
-        if (request.getCustomerId() != null) {
-            customer = customerRepository.findByIdAndIsDeletedFalse(request.getCustomerId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + request.getCustomerId()));
+        User employee = null;
+
+        switch (request.getOrderType()) {
+            case OFFLINE:
+                // Nhân viên bán hàng tại quầy
+                if (actorId == null) {
+                    throw new BadRequestException("Authentication required for OFFLINE orders");
+                }
+
+                // Actor = Employee
+                employeeId = actorId;
+                employee = userRepository.findByIdAndIsDeletedFalse(employeeId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+                // CustomerId từ request (có thể null cho guest tại quầy)
+                customerId = request.getCustomerId();
+                if (customerId != null) {
+                    customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+                }
+                break;
+
+            case ONLINE_COD:
+            case ONLINE_TRANSFER:
+                // Không có nhân viên
+                employeeId = null;
+
+                if (actorId != null) {
+                    // Khách hàng đã đăng nhập (actorId = userId)
+                    customer = customerRepository.findByUserIdAndIsDeletedFalse(actorId)
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "Customer profile not found for user: " + actorId));
+                    customerId = customer.getId();
+                } else {
+                    // Guest checkout (actorId = null)
+                    customerId = null;
+                    customer = createGuestCustomer(request);
+                }
+                break;
+
+            default:
+                throw new BadRequestException("Invalid order type: " + request.getOrderType());
         }
 
-        UUID employeeIdRaw = request.getEmployeeId() != null ? request.getEmployeeId() : actorId;
-        User employee = userRepository.findByIdAndIsDeletedFalse(employeeIdRaw)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + employeeIdRaw));
+        // ========== BƯỚC 2: Validate ==========
+        validateOrderRequest(request, customerId);
 
-        Order order = buildInitialOrder(request, customer, employee);
+        // ========== BƯỚC 3: Build Order Entity ==========
+        Order order = buildOrderEntity(request, customer, employee);
 
-        List<OrderItem> orderItems = processOrderItems(request.getItems(), order, actorId);
+        // ========== BƯỚC 4: Process Order Items (CORE LOGIC) ==========
+        // ActorId để ghi log: ưu tiên employeeId, không có thì customerId, không có thì null
+        UUID processingActorId = (employeeId != null) ? employeeId : customerId;
+        List<OrderItem> orderItems = processOrderItems(request.getItems(), order, processingActorId);
         order.setItems(orderItems);
 
-        calculateOrderFinancials(order, request);
+        // ========== BƯỚC 5: Apply Promotions ==========
+//        if (request.getPromotionIds() != null && !request.getPromotionIds().isEmpty()) {
+//            applyPromotions(order, request.getPromotionIds());
+//        }
 
-        Order savedOrder = repo.save(order);
+        // ========== BƯỚC 6: Apply Loyalty Points ==========
+//        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
+//            applyLoyaltyPoints(order, request.getLoyaltyPointsToUse());
+//        }
 
-        if (auditLogService != null) {
-            auditLogService.log(actorId, AuditModule.ORDER, AuditAction.CREATE,
-                    savedOrder.getId().toString(), "order", null, savedOrder.getOrderNumber(), "Order Created");
+        // ========== BƯỚC 7: Calculate Order Total ==========
+        calculateOrderTotal(order, request);
+
+        // ========== BƯỚC 8: Save Order ==========
+        order = repo.save(order);
+
+        // ========== BƯỚC 8.5: Update Serial with OrderId ==========
+        for (OrderItem item : order.getItems()) {
+            if (item.getProductSerial() != null) {
+                inventoryService.markSerialAsSold(
+                        item.getProductSerial().getSerialNumber(),
+                        order.getId(), // ← Bây giờ có ID rồi
+                        processingActorId
+                );
+            }
         }
 
-        return OrderMapper.mapToOrderResponse(savedOrder);
+        // ========== BƯỚC 9: Send Notification (nếu ONLINE) ==========
+        if (order.getOrderType() == OrderType.ONLINE_COD ||
+                order.getOrderType() == OrderType.ONLINE_TRANSFER) {
+
+            String recipientEmail = (customer != null && customer.getEmail() != null)
+                    ? customer.getEmail()
+                    : request.getGuestEmail();
+
+            if (recipientEmail != null) {
+                // TODO: Implement email notification
+                // notificationService.sendOrderConfirmation(recipientEmail, order);
+            }
+        }
+
+        // ========== BƯỚC 10: Return Response ==========
+        return mapToOrderResponse(order);
+    }
+
+    private Order buildOrderEntity(CreateOrderRequest request, Customer customer, User employee) {
+        String orderNumber = generateOrderNumber();
+
+        Order order = new Order();
+        order.setOrderNumber(orderNumber);
+        order.setCustomer(customer);
+        order.setEmployee(employee);
+        order.setOrderType(request.getOrderType());
+        order.setPaymentMethod(request.getPaymentMethod());
+        order.setStatus(OrderStatus.PENDING);
+
+        // Shipping address (cho ONLINE orders)
+        if (request.getOrderType() == OrderType.ONLINE_COD ||
+                request.getOrderType() == OrderType.ONLINE_TRANSFER) {
+            order.setShippingAddress(request.getShippingAddress());
+        }
+
+        // Snapshot tier info (nếu có customer)
+        if (customer != null && customer.getTier() != null) {
+            order.setTierName(customer.getTier().getName());
+            // TODO: Set tierDiscountRate if needed
+        }
+
+        return order;
+    }
+
+    private void validateOrderRequest(CreateOrderRequest request, UUID resolvedCustomerId) {
+        // 1. Validate items
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new BadRequestException("Order must have at least one item");
+        }
+
+        // 2. Validate ONLINE order
+        if (request.getOrderType() == OrderType.ONLINE_COD ||
+                request.getOrderType() == OrderType.ONLINE_TRANSFER) {
+
+            // Guest checkout: Bắt buộc có thông tin guest
+            if (resolvedCustomerId == null) {
+                if (request.getGuestName() == null || request.getGuestName().trim().isEmpty()) {
+                    throw new BadRequestException("Guest name is required for guest checkout");
+                }
+                if (request.getGuestPhone() == null || request.getGuestPhone().trim().isEmpty()) {
+                    throw new BadRequestException("Guest phone is required for guest checkout");
+                }
+                if (request.getGuestEmail() == null || request.getGuestEmail().trim().isEmpty()) {
+                    throw new BadRequestException("Guest email is required for online guest checkout");
+                }
+            }
+
+            // Shipping address required for ONLINE
+            if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
+                throw new BadRequestException("Shipping address is required for ONLINE orders");
+            }
+        }
+
+        // 3. Validate loyalty points (chỉ cho registered customer)
+        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
+            if (resolvedCustomerId == null) {
+                throw new BadRequestException("Guest checkout cannot use loyalty points");
+            }
+        }
+    }
+
+    // ========== UPDATE calculateOrderTotal signature ==========
+    private void calculateOrderTotal(Order order, CreateOrderRequest request) {
+        BigDecimal subtotal = order.getItems().stream()
+                .map(OrderItem::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setSubtotal(subtotal);
+
+        BigDecimal totalDiscount = BigDecimal.ZERO;
+
+        // Tier Discount
+        if (order.getCustomer() != null && order.getCustomer().getTier() != null) {
+            BigDecimal tierRate = order.getCustomer().getTier().getDiscountRate();
+            if (tierRate != null && tierRate.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal tierDiscount = subtotal.multiply(tierRate)
+                        .divide(new BigDecimal(100), 2, RoundingMode.HALF_DOWN);
+                order.setTierDiscountRate(tierRate);
+                order.setTierDiscountAmount(tierDiscount);
+                totalDiscount = totalDiscount.add(tierDiscount);
+            }
+        }
+
+        // Loyalty Points (Snapshot only, actual deduction in CONFIRMED)
+        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
+            LoyaltyConfigResponse config = loyaltyPointService.getLoyaltyConfig();
+            BigDecimal pointRate = new BigDecimal(config.getRedeemRate());
+            BigDecimal pointsDiscount = loyaltyPointService.calculateRedemptionAmount(
+                    request.getLoyaltyPointsToUse()
+            );
+
+            order.setLoyaltyPointsUsed(request.getLoyaltyPointsToUse());
+            order.setPointDiscountAmount(pointsDiscount);
+            order.setPointRateSnapshot(pointRate);
+            totalDiscount = totalDiscount.add(pointsDiscount);
+        }
+
+        order.setTotalDiscount(totalDiscount);
+        order.setFinalAmount(subtotal.subtract(totalDiscount).max(BigDecimal.ZERO));
     }
 
     @Override
@@ -147,13 +330,35 @@ public class OrderServiceImpl implements OrderService {
                     orderId.toString(), "order", oldStatus.toString(), newStatus.toString(), reason);
         }
 
-        return OrderMapper.mapToOrderResponse(savedOrder, pointsEarned);
+        return mapToOrderResponse(savedOrder, pointsEarned);
     }
 
     @Override
     public void deleteOrder(UUID id) {
         repo.deleteById(id);
     }
+
+    @Override
+    @Transactional
+    public Page<OrderResponse> getOrdersByUserId(UUID userId, Pageable pageable) {
+        // 1. Kiểm tra xem User này có phải là Customer không
+        Optional<Customer> customerOpt = customerRepository.findByUser_Id(userId);
+
+        Page<Order> orderPage;
+
+        if (customerOpt.isPresent()) {
+            // ==> Là Customer: Lấy danh sách đơn hàng họ đã mua
+            orderPage = repo.findByCustomer_Id(customerOpt.get().getId(), pageable);
+        } else {
+            // ==> Không tìm thấy Customer Profile -> Coi là Employee (User): Lấy đơn hàng họ phụ trách
+            // Lưu ý: userId ở đây chính là id của bảng Users
+            orderPage = repo.findByEmployee_Id(userId, pageable);
+        }
+
+        // 2. Map Entity sang Response DTO
+        return orderPage.map(OrderMapper::mapToOrderResponse);
+    }
+
     private List<OrderItem> processOrderItems(List<OrderItemRequest> itemRequests, Order order, UUID actorId) {
         List<OrderItem> finalOrderItems = new ArrayList<>();
 
@@ -213,9 +418,6 @@ public class OrderServiceImpl implements OrderService {
                         .build();
 
                 finalOrderItems.add(item);
-
-                // Đánh dấu Serial là đã bán (SOLD) hoặc đang xử lý
-                inventoryService.markSerialAsSold(serial.getSerialNumber(), order.getId(), actorId);
             }
         }
         return finalOrderItems;
@@ -237,7 +439,6 @@ public class OrderServiceImpl implements OrderService {
         }
         return order;
     }
-
     private void calculateOrderFinancials(Order order, CreateOrderRequest request) {
         // 1. Tổng tiền hàng (đã trừ manual discount ở item)
         BigDecimal subtotal = order.getItems().stream()
@@ -420,6 +621,27 @@ public class OrderServiceImpl implements OrderService {
 
         log.info("Restored {} points to customer {} from cancelled order {}",
                 order.getLoyaltyPointsUsed(), order.getCustomer().getId(), order.getId());
+    }
+
+    private Customer createGuestCustomer(CreateOrderRequest request) {
+        // Kiểm tra phone đã tồn tại chưa
+        if (customerRepository.existsByPhone(request.getGuestPhone())) {
+            throw new BadRequestException("Phone number already exists");
+        }
+
+        // Tạo CustomerRequest từ guest info
+        CustomerRequest customerRequest = new CustomerRequest();
+        customerRequest.setFullName(request.getGuestName());
+        customerRequest.setPhone(request.getGuestPhone());
+        customerRequest.setEmail(request.getGuestEmail());
+        customerRequest.setTierId(null); // Guest không có tier
+
+        // Gọi CustomerService để tạo
+        CustomerResponse customerResponse = customerService.createCustomer(customerRequest);
+
+        // Lấy lại Customer entity
+        return customerRepository.findById(customerResponse.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Failed to create customer"));
     }
 
     // TODO: Shipping logic

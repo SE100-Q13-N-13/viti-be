@@ -49,6 +49,9 @@ public class Order extends BaseEntity {
     @Builder.Default
     private Integer loyaltyPointsUsed = 0;
 
+    @Column(name = "shipping_address")
+    private String shippingAddress;
+
     // ==========================================
     // KHU VỰC TÀI CHÍNH (Dùng BigDecimal)
     // ==========================================

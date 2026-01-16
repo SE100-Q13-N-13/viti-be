@@ -8,6 +8,10 @@ import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -51,11 +55,18 @@ public class OrderController {
     /**
      * Lấy danh sách đơn hàng
      * GET /api/orders
-     * TODO: Nên nâng cấp thêm Pagination (Page, Size) và Filter
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getAllOrders() {
-        List<OrderResponse> orders = orderService.getAllOrders();
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getAllOrders(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String order
+    ) {
+        Sort.Direction direction = order.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Page<OrderResponse> orders = orderService.getAllOrders(pageable);
         return ResponseEntity.ok(ApiResponse.success(orders, "Lấy danh sách đơn hàng thành công"));
     }
 
@@ -117,6 +128,27 @@ public class OrderController {
     public ResponseEntity<ApiResponse<Void>> deleteOrder(@PathVariable("id") UUID id) {
         orderService.deleteOrder(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa đơn hàng"));
+    }
+
+    /**
+     * Lấy danh sách đơn hàng (user)
+     * GET /api/orders/user
+     */
+    @GetMapping("/user")
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrdersByUser(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String order,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+
+        UUID userId = getUserId(userDetails);
+        Sort.Direction direction = order.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Page<OrderResponse> orders = orderService.getOrdersByUserId(userId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(orders, "Lấy danh sách đơn hàng thành công"));
     }
 
     // ================= HELPER METHODS =================
