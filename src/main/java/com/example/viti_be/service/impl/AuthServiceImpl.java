@@ -204,8 +204,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void changePassword(String username, String oldPassword, String newPassword) {
-        User user = userRepository.findByEmail(username)
+    public void changePassword(UUID userId, String oldPassword, String newPassword) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {

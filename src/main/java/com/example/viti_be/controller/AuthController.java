@@ -23,9 +23,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -87,10 +89,13 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
-    public ResponseEntity<ApiResponse<Object>> changePassword(@RequestBody PasswordRequest.ChangePasswordRequest request) {
+    public ResponseEntity<ApiResponse<Object>> changePassword(
+            @RequestBody PasswordRequest.ChangePasswordRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID userId = userImpl.getId();
         try {
-            String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-            authService.changePassword(currentUsername, request.getOldPassword(), request.getNewPassword());
+            authService.changePassword(userId, request.getOldPassword(), request.getNewPassword());
             return ResponseEntity.ok(ApiResponse.success(null, "Password changed successfully."));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest()

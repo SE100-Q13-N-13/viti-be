@@ -35,6 +35,9 @@ public class AuditLog {
     @Column(name = "resource_id")
     private String resourceId; // ID of the affected resource
 
+    @Column(name = "resource_type")
+    private String resourceType;
+
     @Column(name = "old_value", columnDefinition = "TEXT")
     private String oldValue; // JSON representation of old value
 

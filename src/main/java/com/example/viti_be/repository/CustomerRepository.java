@@ -2,6 +2,7 @@ package com.example.viti_be.repository;
 
 import com.example.viti_be.model.Customer;
 import com.example.viti_be.model.CustomerTier;
+import com.example.viti_be.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,7 @@ import java.util.UUID;
 public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     Optional<Customer> findByPhone(String phone);
     Optional<Customer> findByEmail(String email);
+    Optional<Customer> findByUser(User user);
     boolean existsByPhone(String phone);
     List<Customer> findByIsDeletedFalse();
 

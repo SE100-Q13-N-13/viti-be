@@ -8,6 +8,9 @@ import java.util.UUID;
 public class CategoryResponse {
     private UUID id;
     private String name;
+    private String imageUrl;
+    private String description;
+
     private UUID parentId;
     private String parentName;
     private List<CategorySpecResponse> specs;

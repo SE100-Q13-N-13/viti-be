@@ -6,6 +6,5 @@ import lombok.Data;
 public class UserRequest {
     private String fullName;
     private String phone;
-    private String avatar;
     // Thêm vào sau này
 }

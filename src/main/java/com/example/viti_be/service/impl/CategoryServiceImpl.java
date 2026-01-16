@@ -7,10 +7,12 @@ import com.example.viti_be.model.CategorySpec;
 import com.example.viti_be.repository.CategoryRepository;
 import com.example.viti_be.repository.CategorySpecRepository;
 import com.example.viti_be.service.CategoryService;
+import com.example.viti_be.service.CloudinaryService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,11 +23,19 @@ public class CategoryServiceImpl implements CategoryService {
     @Autowired CategoryRepository categoryRepository;
     @Autowired CategorySpecRepository categorySpecRepository;
     @Autowired ObjectMapper objectMapper;
+    @Autowired
+    CloudinaryService cloudinaryService;
 
     @Override
-    public Category createCategory(CategoryRequest request) {
+    public Category createCategory(CategoryRequest request, MultipartFile image) {
         Category category = new Category();
         category.setName(request.getName());
+        category.setDescription(request.getDescription());
+
+        if (image != null && !image.isEmpty()) {
+            String url = cloudinaryService.uploadFile(image);
+            category.setImageUrl(url);
+        }
 
         if (request.getParentId() != null) {
             Category parent = categoryRepository.findById(request.getParentId())
@@ -44,9 +54,15 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public Category updateCategory(UUID id, CategoryRequest request) {
+    public Category updateCategory(UUID id, CategoryRequest request, MultipartFile image) {
         Category category = getCategoryById(id);
         category.setName(request.getName());
+        category.setDescription(request.getDescription());
+
+        if (image != null && !image.isEmpty()) {
+            String url = cloudinaryService.uploadFile(image);
+            category.setImageUrl(url);
+        }
 
         if (request.getParentId() != null) {
             Category parent = categoryRepository.findById(request.getParentId())
