@@ -30,15 +30,14 @@ public class PartComponent extends BaseEntity {
     @Column(name = "unit", length = 20)
     private String unit; // VD: "Cái", "Bộ"
 
-    @Column(name = "unit_price", precision = 15, scale = 2)
-    private BigDecimal unitPrice; // Giá nhập
+    @Column(name = "purchase_price_avg", precision = 15, scale = 2)
+    private BigDecimal purchasePriceAvg;
+
+    @Column(name = "selling_price", precision = 15, scale = 2)
+    private BigDecimal sellingPrice;
 
     @Column(name = "min_stock")
     private Integer minStock; // Tồn tối thiểu
-
-    @Column(name = "is_active")
-    @Builder.Default
-    private Boolean isActive = true;
 
     // Note: Inventory được quản lý trong bảng Inventory (chung với ProductVariant)
 }

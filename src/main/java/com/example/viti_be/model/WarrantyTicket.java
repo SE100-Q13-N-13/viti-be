@@ -138,11 +138,8 @@ public class WarrantyTicket extends BaseEntity {
      * Check nếu có thể đổi status
      */
     public boolean canTransitionTo(WarrantyTicketStatus newStatus) {
-        if (this.status == WarrantyTicketStatus.RETURNED ||
-                this.status == WarrantyTicketStatus.CANCELLED) {
-            return false; // Terminal states
-        }
-        return true;
+        return this.status != WarrantyTicketStatus.RETURNED &&
+                this.status != WarrantyTicketStatus.CANCELLED; // Terminal states
     }
 
     /**

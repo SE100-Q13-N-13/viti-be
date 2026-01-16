@@ -2,27 +2,28 @@ package com.example.viti_be.controller;
 
 import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.WarrantyService;
 import com.example.viti_be.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
  * REST Controller cho Warranty Module
+ * CHUẨN HÓA với ApiResponse như OrderController
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/warranty-tickets")
 @RequiredArgsConstructor
 @Tag(name = "Warranty Management", description = "APIs for managing warranty/repair tickets")
 public class WarrantyController {
@@ -30,239 +31,257 @@ public class WarrantyController {
     private final WarrantyService warrantyService;
 
     // ========================================
-    // ADMIN/TECHNICIAN APIs
+    // ADMIN/TECHNICIAN APIs - WARRANTY TICKETS
     // ========================================
 
-    @PostMapping("/admin/warranty-tickets")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Create warranty ticket")
-    public ResponseEntity<Map<String, Object>> createTicket(
-            @Valid @RequestBody CreateWarrantyTicketRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @PostMapping("/admin")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Tạo phiếu bảo hành mới")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> createTicket(
+            @Valid @RequestBody CreateWarrantyTicketRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.createTicket(request, actorId);
 
-        return buildSuccessResponse(response, "Ticket created successfully", HttpStatus.CREATED);
+        return ResponseEntity.ok(ApiResponse.success(response, "Tạo phiếu bảo hành thành công"));
     }
 
-    @PutMapping("/admin/warranty-tickets/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Update warranty ticket")
-    public ResponseEntity<Map<String, Object>> updateTicket(
+    @PutMapping("/admin/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Cập nhật phiếu bảo hành")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> updateTicket(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateWarrantyTicketRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody UpdateWarrantyTicketRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.updateTicket(id, request, actorId);
 
-        return buildSuccessResponse(response, "Ticket updated successfully");
+        return ResponseEntity.ok(ApiResponse.success(response, "Cập nhật phiếu thành công"));
     }
 
-    @DeleteMapping("/admin/warranty-tickets/{id}")
+    @DeleteMapping("/admin/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete warranty ticket")
-    public ResponseEntity<Map<String, Object>> deleteTicket(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @Operation(summary = "Xóa phiếu bảo hành")
+    public ResponseEntity<ApiResponse<Void>> deleteTicket(@PathVariable UUID id,
+                                                          @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         warrantyService.deleteTicket(id, actorId);
 
-        return buildSuccessResponse(null, "Ticket deleted successfully");
+        return ResponseEntity.ok(ApiResponse.success(null, "Xóa phiếu thành công"));
     }
 
     @GetMapping("/admin/warranty-tickets/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Get ticket detail")
-    public ResponseEntity<Map<String, Object>> getTicketById(@PathVariable UUID id) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Lấy chi tiết phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> getTicketById(@PathVariable UUID id) {
         WarrantyTicketResponse response = warrantyService.getTicketById(id);
-        return buildSuccessResponse(response, "Success");
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy thông tin phiếu thành công"));
     }
 
-    @GetMapping("/admin/warranty-tickets")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Get all tickets")
-    public ResponseEntity<Map<String, Object>> getAllTickets() {
+    @GetMapping("/admin")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Lấy danh sách tất cả phiếu")
+    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> getAllTickets() {
         List<WarrantyTicketSummaryResponse> tickets = warrantyService.getAllTickets();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("data", tickets);
-        result.put("total", tickets.size());
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(tickets, "Lấy danh sách phiếu thành công"));
     }
 
-    @GetMapping("/admin/warranty-tickets/search")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Search tickets by keyword")
-    public ResponseEntity<Map<String, Object>> searchTickets(@RequestParam String keyword) {
+    @GetMapping("/admin/search")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Tìm kiếm phiếu theo keyword")
+    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> searchTickets(
+            @RequestParam String keyword) {
         List<WarrantyTicketSummaryResponse> tickets = warrantyService.searchTickets(keyword);
-        return buildSuccessResponse(tickets, "Search completed");
+        return ResponseEntity.ok(ApiResponse.success(tickets, "Tìm kiếm hoàn tất"));
     }
 
-    @PatchMapping("/admin/warranty-tickets/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Change ticket status")
-    public ResponseEntity<Map<String, Object>> changeStatus(
-            @PathVariable UUID id,
-            @Valid @RequestBody ChangeTicketStatusRequest request) {
+    // ========================================
+    // STATUS MANAGEMENT APIs
+    // ========================================
 
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @PatchMapping("/admin/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Đổi trạng thái phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> changeStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody ChangeTicketStatusRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.changeTicketStatus(id, request, actorId);
 
-        return buildSuccessResponse(response, "Status changed successfully");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đổi trạng thái thành công"));
     }
 
-    @PostMapping("/admin/warranty-tickets/{id}/start")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Start repair")
-    public ResponseEntity<Map<String, Object>> startRepair(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @PostMapping("/admin/{id}/start")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Bắt đầu sửa chữa")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> startRepair(@PathVariable UUID id,
+                                                                           @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.startRepair(id, actorId);
 
-        return buildSuccessResponse(response, "Repair started");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã bắt đầu sửa chữa"));
     }
 
-    @PostMapping("/admin/warranty-tickets/{id}/complete")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Complete repair")
-    public ResponseEntity<Map<String, Object>> completeRepair(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @PostMapping("/admin/{id}/complete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Hoàn thành sửa chữa")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> completeRepair(@PathVariable UUID id,
+                                                                              @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.completeRepair(id, actorId);
 
-        return buildSuccessResponse(response, "Repair completed");
+        return ResponseEntity.ok(ApiResponse.success(response, "Hoàn thành sửa chữa"));
     }
 
-    @PostMapping("/admin/warranty-tickets/{id}/return")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'CASHIER')")
-    @Operation(summary = "Return to customer")
-    public ResponseEntity<Map<String, Object>> returnToCustomer(@PathVariable UUID id) {
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @PostMapping("/admin/{id}/return")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Trả máy cho khách")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> returnToCustomer(@PathVariable UUID id,
+                                                                                @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.returnToCustomer(id, actorId);
 
-        return buildSuccessResponse(response, "Returned to customer");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã trả máy cho khách"));
     }
 
-    @PostMapping("/admin/warranty-tickets/{id}/cancel")
+    @PostMapping("/admin/{id}/cancel")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Cancel ticket")
-    public ResponseEntity<Map<String, Object>> cancelTicket(
+    @Operation(summary = "Hủy phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> cancelTicket(
             @PathVariable UUID id,
-            @RequestParam String reason) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @RequestParam String reason,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.cancelTicket(id, reason, actorId);
 
-        return buildSuccessResponse(response, "Ticket cancelled");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã hủy phiếu"));
     }
 
-    @PostMapping("/admin/warranty-tickets/{id}/services")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Add services to ticket")
-    public ResponseEntity<Map<String, Object>> addServices(
-            @PathVariable UUID id,
-            @Valid @RequestBody AddServicesRequest request) {
+    // ========================================
+    // SERVICE & PART MANAGEMENT APIs
+    // ========================================
 
-        UUID actorId = SecurityUtils.getCurrentUserId();
+    @PostMapping("/admin/{id}/services")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Thêm dịch vụ vào phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> addServices(
+            @PathVariable UUID id,
+            @Valid @RequestBody AddServicesRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.addServices(id, request, actorId);
 
-        return buildSuccessResponse(response, "Services added");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã thêm dịch vụ"));
     }
 
-    @DeleteMapping("/admin/warranty-tickets/{id}/services/{serviceId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Remove service from ticket")
-    public ResponseEntity<Map<String, Object>> removeService(
+    @DeleteMapping("/admin/{id}/services/{serviceId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Xóa dịch vụ khỏi phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> removeService(
             @PathVariable UUID id,
-            @PathVariable UUID serviceId) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @PathVariable UUID serviceId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.removeService(id, serviceId, actorId);
 
-        return buildSuccessResponse(response, "Service removed");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã xóa dịch vụ"));
     }
 
-    @PostMapping("/admin/warranty-tickets/{id}/parts")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Add parts to ticket")
-    public ResponseEntity<Map<String, Object>> addParts(
+    @PostMapping("/admin/{id}/parts")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Thêm linh kiện vào phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> addParts(
             @PathVariable UUID id,
-            @Valid @RequestBody AddPartsRequest request) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @Valid @RequestBody AddPartsRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.addParts(id, request, actorId);
 
-        return buildSuccessResponse(response, "Parts added");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã thêm linh kiện"));
     }
 
-    @DeleteMapping("/admin/warranty-tickets/{id}/parts/{partId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
-    @Operation(summary = "Remove part from ticket")
-    public ResponseEntity<Map<String, Object>> removePart(
+    @DeleteMapping("/admin/{id}/parts/{partId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Xóa linh kiện khỏi phiếu")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> removePart(
             @PathVariable UUID id,
-            @PathVariable UUID partId) {
-
-        UUID actorId = SecurityUtils.getCurrentUserId();
+            @PathVariable UUID partId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
         WarrantyTicketResponse response = warrantyService.removePart(id, partId, actorId);
 
-        return buildSuccessResponse(response, "Part removed");
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã xóa linh kiện"));
     }
 
-    @GetMapping("/admin/warranty-tickets/dashboard")
+    @PutMapping("/admin/{id}/technician")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get warranty dashboard")
-    public ResponseEntity<Map<String, Object>> getDashboard() {
+    @Operation(summary = "Reassign kỹ thuật viên")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> reassignTechnician(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReassignTechnicianRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID actorId = ((UserDetailsImpl) userDetails).getId();
+        WarrantyTicketResponse response = warrantyService.reassignTechnician(id, request, actorId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, "Đã chuyển kỹ thuật viên"));
+    }
+
+    // ========================================
+    // REPORTING APIs
+    // ========================================
+
+    @GetMapping("/admin/dashboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Lấy dashboard thống kê")
+    public ResponseEntity<ApiResponse<WarrantyDashboardResponse>> getDashboard() {
         WarrantyDashboardResponse dashboard = warrantyService.getDashboard();
-        return buildSuccessResponse(dashboard, "Success");
+        return ResponseEntity.ok(ApiResponse.success(dashboard, "Lấy thống kê thành công"));
+    }
+
+    @GetMapping("/admin/overdue")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Lấy danh sách phiếu quá hạn")
+    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> getOverdueTickets() {
+        List<WarrantyTicketSummaryResponse> tickets = warrantyService.getOverdueTickets();
+        return ResponseEntity.ok(ApiResponse.success(tickets, "Lấy danh sách phiếu quá hạn thành công"));
+    }
+
+    @GetMapping("/admin/{id}/history")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Lấy lịch sử đổi trạng thái")
+    public ResponseEntity<ApiResponse<List<TicketStatusHistoryResponse>>> getStatusHistory(
+            @PathVariable UUID id) {
+        List<TicketStatusHistoryResponse> history = warrantyService.getTicketStatusHistory(id);
+        return ResponseEntity.ok(ApiResponse.success(history, "Lấy lịch sử thành công"));
     }
 
     // ========================================
     // PUBLIC APIs (Customer)
     // ========================================
 
-    @GetMapping("/warranty-tickets/search")
-    @Operation(summary = "Search ticket by serial (Public)")
-    public ResponseEntity<Map<String, Object>> searchBySerial(@RequestParam String serial) {
+    @GetMapping("/search")
+    @Operation(summary = "Tra cứu phiếu theo serial (Public)")
+    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> searchBySerial(
+            @RequestParam String serial) {
         List<WarrantyTicketSummaryResponse> tickets = warrantyService.findTicketsBySerial(serial);
-        return buildSuccessResponse(tickets, "Success");
+        return ResponseEntity.ok(ApiResponse.success(tickets, "Tra cứu thành công"));
     }
 
-    @GetMapping("/warranty-tickets/my-tickets")
-    @Operation(summary = "Get my tickets (Customer)")
-    public ResponseEntity<Map<String, Object>> getMyTickets() {
-        UUID customerId = SecurityUtils.getCurrentUserId(); // Assuming customer is also a user
+    @GetMapping("/my-tickets")
+    @Operation(summary = "Lấy phiếu của tôi (Customer)")
+    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> getMyTickets(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID customerId = ((UserDetailsImpl) userDetails).getId();
         List<WarrantyTicketSummaryResponse> tickets = warrantyService.getTicketsByCustomer(customerId);
-        return buildSuccessResponse(tickets, "Success");
+        return ResponseEntity.ok(ApiResponse.success(tickets, "Lấy danh sách phiếu thành công"));
     }
 
-    @GetMapping("/warranty-tickets/{id}/status")
-    @Operation(summary = "Check ticket status (Public)")
-    public ResponseEntity<Map<String, Object>> checkStatus(@PathVariable UUID id) {
+    @GetMapping("/{id}/status")
+    @Operation(summary = "Kiểm tra trạng thái phiếu (Public)")
+    public ResponseEntity<ApiResponse<WarrantyTicketResponse>> checkStatus(@PathVariable UUID id) {
         WarrantyTicketResponse ticket = warrantyService.getTicketById(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("ticketNumber", ticket.getTicketNumber());
-        result.put("status", ticket.getStatus());
-        result.put("expectedReturnDate", ticket.getExpectedReturnDate());
-        result.put("notes", ticket.getNotes());
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(ticket, "Lấy trạng thái thành công"));
     }
 
-    // ========================================
-    // HELPER METHODS
-    // ========================================
-
-    private ResponseEntity<Map<String, Object>> buildSuccessResponse(Object data, String message) {
-        return buildSuccessResponse(data, message, HttpStatus.OK);
-    }
-
-    private ResponseEntity<Map<String, Object>> buildSuccessResponse(Object data, String message, HttpStatus status) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("message", message);
-        if (data != null) {
-            result.put("data", data);
-        }
-        return ResponseEntity.status(status).body(result);
-    }
 }
