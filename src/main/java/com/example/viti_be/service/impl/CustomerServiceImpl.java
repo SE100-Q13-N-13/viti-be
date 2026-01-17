@@ -160,6 +160,49 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional
+    public CustomerResponse updateAddress(UUID customerId, UUID addressId, AddressRequest request) {
+        Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
+
+        if (!address.getCustomer().getId().equals(customerId)) {
+            throw new BadRequestException("Address does not belong to this customer");
+        }
+
+        // Validate province
+        Province province = provinceRepository.findById(request.getProvinceCode())
+                .orElseThrow(() -> new ResourceNotFoundException("Province not found"));
+
+        // Validate commune
+        Commune commune = communeRepository.findById(request.getCommuneCode())
+                .orElseThrow(() -> new ResourceNotFoundException("Commune not found"));
+
+        // Validate commune belongs to province
+        if (!commune.getProvince().getCode().equals(request.getProvinceCode())) {
+            throw new BadRequestException("Commune does not belong to the selected province");
+        }
+
+        // If this is set as primary, remove primary from other addresses
+        if (Boolean.TRUE.equals(request.getIsPrimary()) && !Boolean.TRUE.equals(address.getIsPrimary())) {
+            customer.getAddresses().forEach(addr -> addr.setIsPrimary(false));
+        }
+
+        // Update address
+        address.setStreet(request.getStreet());
+        address.setCommune(commune);
+        address.setProvince(province);
+        address.setType(request.getType());
+        address.setIsPrimary(request.getIsPrimary());
+        address.setPostalCode(request.getPostalCode());
+
+        addressRepository.save(address);
+        return mapToResponse(customer);
+    }
+
+    @Override
+    @Transactional
     public void deleteAddress(UUID customerId, UUID addressId) {
         Customer customer = customerRepository.findByIdAndIsDeletedFalse(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));

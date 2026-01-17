@@ -70,6 +70,16 @@ public class CustomerController {
                 .body(ApiResponse.success(customer, "Address added successfully"));
     }
 
+    @PutMapping("/{customerId}/addresses/{addressId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    public ResponseEntity<ApiResponse<CustomerResponse>> updateAddress(
+            @PathVariable UUID customerId,
+            @PathVariable UUID addressId,
+            @Valid @RequestBody AddressRequest request) {
+        CustomerResponse customer = customerService.updateAddress(customerId, addressId, request);
+        return ResponseEntity.ok(ApiResponse.success(customer, "Address updated successfully"));
+    }
+
     @DeleteMapping("/{customerId}/addresses/{addressId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<ApiResponse<Void>> deleteAddress(

@@ -16,5 +16,7 @@ public interface UserService {
     // Address management methods
     AddressResponse addAddress(UUID userId, AddressRequest request);
     List<AddressResponse> getAddresses(UUID userId);
+    List<AddressResponse> getAddressesByUserId(UUID userId);
+    AddressResponse updateAddress(UUID userId, UUID addressId, AddressRequest request);
     void deleteAddress(UUID userId, UUID addressId);
 }
