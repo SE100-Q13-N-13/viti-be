@@ -8,15 +8,8 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
-/**
- * Service interface for Notification operations.
- * Thiết kế event-based, có thể mở rộng cho nhiều loại notification khác nhau.
- */
-public interface NotificationService {
 
-    // ===============================
-    // NOTIFICATION CREATION (Event-based)
-    // ===============================
+public interface NotificationService {
 
     /**
      * Tạo notification cho một event cụ thể.
