@@ -24,6 +24,7 @@ public class AuditLogServiceImpl implements AuditLogService {
                 .module(module)
                 .action(action)
                 .resourceId(resourceId)
+                .resourceType(resourceType)
                 .oldValue(oldValue)
                 .newValue(newValue)
                 .status(status)
