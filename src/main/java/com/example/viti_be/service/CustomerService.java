@@ -16,6 +16,7 @@ public interface CustomerService {
     List<CustomerResponse> getAllCustomers();
     void deleteCustomer(UUID id);
     CustomerResponse addAddress(UUID customerId, AddressRequest request);
+    CustomerResponse updateAddress(UUID customerId, UUID addressId, AddressRequest request);
     void deleteAddress(UUID customerId, UUID addressId);
 
     Customer createCustomerForUser(User user);

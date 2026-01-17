@@ -135,6 +135,67 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<AddressResponse> getAddressesByUserId(UUID userId) {
+        // Admin/Employee get addresses of any user
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+
+        return customer.getAddresses().stream()
+                .filter(address -> !Boolean.TRUE.equals(address.getIsDeleted()))
+                .map(this::mapToAddressResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public AddressResponse updateAddress(UUID userId, UUID addressId, AddressRequest request) {
+        // Find customer by Id
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
+
+        // Verify address belongs to customer
+        if (!address.getCustomer().getId().equals(customer.getId())) {
+            throw new IllegalArgumentException("Address does not belong to this customer");
+        }
+
+        // Validate province
+        Province province = provinceRepository.findById(request.getProvinceCode())
+                .orElseThrow(() -> new ResourceNotFoundException("Province not found"));
+
+        // Validate commune belongs to province
+        Commune commune = communeRepository.findById(request.getCommuneCode())
+                .orElseThrow(() -> new ResourceNotFoundException("Commune not found"));
+
+        if (!commune.getProvince().getCode().equals(request.getProvinceCode())) {
+            throw new IllegalArgumentException("Commune does not belong to the specified province");
+        }
+
+        // If this is set as primary, remove primary from other addresses
+        if (Boolean.TRUE.equals(request.getIsPrimary()) && !Boolean.TRUE.equals(address.getIsPrimary())) {
+            customer.getAddresses().forEach(addr -> addr.setIsPrimary(false));
+        }
+
+        // Update address
+        address.setStreet(request.getStreet());
+        address.setProvince(province);
+        address.setCommune(commune);
+        address.setType(request.getType());
+        address.setIsPrimary(request.getIsPrimary());
+        address.setPostalCode(request.getPostalCode());
+
+        Address updatedAddress = addressRepository.save(address);
+
+        return mapToAddressResponse(updatedAddress);
+    }
+
+    @Override
     @Transactional
     public void deleteAddress(UUID userId, UUID addressId) {
         // Find customer by Id

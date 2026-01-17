@@ -1,9 +1,13 @@
 package com.example.viti_be.service;
 
+import com.example.viti_be.dto.response.AuditLogResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.AuditLog;
 import com.example.viti_be.model.model_enum.AuditAction;
 import com.example.viti_be.model.model_enum.AuditModule;
+import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public interface AuditLogService {
@@ -34,4 +38,22 @@ public interface AuditLogService {
      */
     AuditLog logFailure(UUID actorId, AuditModule module, AuditAction action, String resourceId, String resourceType,
                         String oldValue, String newValue);
+    
+    /**
+     * Get all audit logs with filters and pagination
+     * @param startDate Start date filter (optional)
+     * @param endDate End date filter (optional)
+     * @param actorId Actor ID filter (optional)
+     * @param action Action filter (optional)
+     * @param module Module filter (optional)
+     * @param pageable Pagination information
+     * @return PageResponse of AuditLogResponse
+     */
+    PageResponse<AuditLogResponse> getAllAuditLogs(
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            UUID actorId,
+            AuditAction action,
+            AuditModule module,
+            Pageable pageable);
 }

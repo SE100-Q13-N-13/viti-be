@@ -4,6 +4,7 @@ import com.example.viti_be.dto.request.CustomerRequest;
 import com.example.viti_be.dto.response.CustomerResponse;
 import com.example.viti_be.dto.response.LoyaltyConfigResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
+import com.example.viti_be.event.OrderCreatedEvent;
 import com.example.viti_be.mapper.OrderMapper;
 import com.example.viti_be.dto.request.CreateOrderRequest;
 import com.example.viti_be.dto.request.OrderItemRequest;
@@ -20,6 +21,7 @@ import com.example.viti_be.service.*;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -49,6 +51,7 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private LoyaltyPointRepository loyaltyPointRepository;
     @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
     @Autowired private CustomerService customerService;
+    @Autowired private ApplicationEventPublisher eventPublisher;
 
     @Override
     public OrderResponse getOrderById(UUID id) {
@@ -168,6 +171,11 @@ public class OrderServiceImpl implements OrderService {
                 // notificationService.sendOrderConfirmation(recipientEmail, order);
             }
         }
+
+        // ========== BƯỚC 9.5: Publish OrderCreatedEvent ==========
+        // Event sẽ được xử lý SAU KHI transaction commit thành công
+        // Notification được tạo async, không block luồng tạo đơn
+        eventPublisher.publishEvent(new OrderCreatedEvent(this, order.getId(), order.getOrderNumber()));
 
         // ========== BƯỚC 10: Return Response ==========
         return mapToOrderResponse(order);

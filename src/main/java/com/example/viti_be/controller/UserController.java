@@ -83,6 +83,28 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(addresses, "Addresses retrieved successfully"));
     }
 
+    @GetMapping("/{userId}/addresses")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @Operation(summary = "Get all addresses of a specific user (Admin/Employee only)")
+    public ResponseEntity<ApiResponse<List<AddressResponse>>> getAddressesByUserId(
+            @PathVariable UUID userId) {
+        List<AddressResponse> addresses = userService.getAddressesByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.success(addresses, "Addresses retrieved successfully"));
+    }
+
+    @PutMapping("/addresses/{addressId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Update address of current user")
+    public ResponseEntity<ApiResponse<AddressResponse>> updateAddress(
+            @PathVariable UUID addressId,
+            @Valid @RequestBody AddressRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+        UUID userId = userImpl.getId();
+        AddressResponse response = userService.updateAddress(userId, addressId, request);
+        return ResponseEntity.ok(ApiResponse.success(response, "Address updated successfully"));
+    }
+
     @DeleteMapping("/addresses/{addressId}")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Delete address from current user's account")
