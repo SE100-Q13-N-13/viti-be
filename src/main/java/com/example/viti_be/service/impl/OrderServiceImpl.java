@@ -128,23 +128,13 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> orderItems = processOrderItems(request.getItems(), order, processingActorId);
         order.setItems(orderItems);
 
-        // ========== BƯỚC 5: Apply Promotions ==========
-//        if (request.getPromotionIds() != null && !request.getPromotionIds().isEmpty()) {
-//            applyPromotions(order, request.getPromotionIds());
-//        }
-
-        // ========== BƯỚC 6: Apply Loyalty Points ==========
-//        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
-//            applyLoyaltyPoints(order, request.getLoyaltyPointsToUse());
-//        }
-
-        // ========== BƯỚC 7: Calculate Order Total ==========
+        // ========== BƯỚC 5: Calculate Order Total ==========
         calculateOrderTotal(order, request);
 
-        // ========== BƯỚC 8: Save Order ==========
+        // ========== BƯỚC 6: Save Order ==========
         order = repo.save(order);
 
-        // ========== BƯỚC 8.5: Update Serial with OrderId ==========
+        // ========== BƯỚC 6.5: Update Serial with OrderId ==========
         for (OrderItem item : order.getItems()) {
             if (item.getProductSerial() != null) {
                 inventoryService.markSerialAsSold(
@@ -155,7 +145,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // ========== BƯỚC 9: Send Notification (nếu ONLINE) ==========
+        // ========== BƯỚC 7: Send Notification (nếu ONLINE) ==========
         if (order.getOrderType() == OrderType.ONLINE_COD ||
                 order.getOrderType() == OrderType.ONLINE_TRANSFER) {
 
@@ -169,7 +159,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // ========== BƯỚC 10: Return Response ==========
+        // ========== BƯỚC 8: Return Response ==========
         return mapToOrderResponse(order);
     }
 
@@ -272,11 +262,11 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 3. Promotion Discount (TODO: Implement when needed)
+        // 3. Promotion Discount
         BigDecimal promotionDiscount = BigDecimal.ZERO;
         if (request.getPromotionIds() != null && !request.getPromotionIds().isEmpty()) {
-            // promotionDiscount = calculatePromotionDiscount(order, request.getPromotionIds());
-            // totalDiscount = totalDiscount.add(promotionDiscount);
+            promotionDiscount = applyPromotions(order, request.getPromotionIds());
+            totalDiscount = totalDiscount.add(promotionDiscount);
         }
 
         // 4. Loyalty Points Discount (áp dụng sau cùng)

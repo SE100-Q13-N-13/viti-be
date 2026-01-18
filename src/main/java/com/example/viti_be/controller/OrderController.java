@@ -44,8 +44,13 @@ public class OrderController {
             @Valid @RequestBody CreateOrderRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
-        UUID actorId = userImpl.getId();
+        UUID actorId = null;
+
+        if (userDetails != null) {
+            UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+            actorId = userImpl.getId();
+        }
+
         OrderResponse newOrder = orderService.createOrder(request, actorId);
 
         return ResponseEntity.ok(ApiResponse.success(newOrder, "Tạo đơn hàng thành công"));
