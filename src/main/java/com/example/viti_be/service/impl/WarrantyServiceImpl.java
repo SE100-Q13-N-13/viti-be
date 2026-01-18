@@ -152,9 +152,9 @@ public class WarrantyServiceImpl implements WarrantyService {
         WarrantyTicket savedTicket = ticketRepository.saveAndFlush(ticket);
 
         // 11. Audit Log
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.CREATE,
+        auditLogService.logSuccess(actorId, AuditModule.WARRANTY, AuditAction.CREATE,
                 savedTicket.getId().toString(), "warranty_ticket", null,
-                savedTicket.getTicketNumber(), "Created warranty ticket");
+                savedTicket.getTicketNumber());
 
         log.info("Created warranty ticket: {}", savedTicket.getTicketNumber());
         return mapper.toTicketResponse(savedTicket);
@@ -189,33 +189,33 @@ public class WarrantyServiceImpl implements WarrantyService {
                 ticket.setTechnician(newTechnician);
 
                 // Log reassignment
-                auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
+                auditLogService.logSuccess(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
                         ticketId.toString(), "technician",
                         oldTechnician != null ? oldTechnician.getFullName() : "None",
-                        newTechnician.getFullName(), "Reassigned technician");
+                        newTechnician.getFullName());
             }
         }
 
         String oldAccessories = ticket.getAccessories();
         String newAccessories = request.getAccessories();
         if (newAccessories != null && !newAccessories.equals(oldAccessories)) {
-            auditLogService.log(
+            auditLogService.logSuccess(
                     actorId,
                     AuditModule.WARRANTY,
                     AuditAction.UPDATE,
                     ticket.getId().toString(),
                     "warranty_ticket_accessories",
                     oldAccessories,
-                    newAccessories,
-                    "SUCCESS"
+                    newAccessories
             );
         }
 
         ticket.setUpdatedBy(actorId);
         WarrantyTicket savedTicket = ticketRepository.save(ticket);
 
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
-                ticketId.toString(), "warranty_ticket", null, null, "Updated ticket info");
+        auditLogService.logSuccess(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
+                ticketId.toString(), "warranty_ticket", null,
+                "Updated: " + String.join(", ", getUpdatedFields(request)));
 
         return mapper.toTicketResponse(savedTicket);
     }
@@ -240,9 +240,9 @@ public class WarrantyServiceImpl implements WarrantyService {
         ticket.setUpdatedBy(actorId);
         ticketRepository.save(ticket);
 
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.DELETE,
+        auditLogService.logSuccess(actorId, AuditModule.WARRANTY, AuditAction.DELETE,
                 ticketId.toString(), "warranty_ticket", ticket.getTicketNumber(),
-                null, "Deleted ticket");
+                null);
 
         log.info("Deleted warranty ticket: {}", ticket.getTicketNumber());
     }
@@ -340,9 +340,14 @@ public class WarrantyServiceImpl implements WarrantyService {
         WarrantyTicket savedTicket = ticketRepository.save(ticket);
 
         // Audit log
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
-                ticketId.toString(), "status", oldStatus.toString(), newStatus.toString(),
-                request.getReason());
+        String statusChangeNote = request.getReason() != null ?
+                request.getReason() :
+                "Status changed from " + oldStatus + " to " + newStatus;
+
+        auditLogService.logSuccess(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
+                ticketId.toString(), "warranty_ticket",
+                oldStatus.toString(),
+                newStatus.toString());
 
         log.info("Changed ticket {} status: {} -> {}", ticket.getTicketNumber(), oldStatus, newStatus);
         return mapper.toTicketResponse(savedTicket);
@@ -467,9 +472,9 @@ public class WarrantyServiceImpl implements WarrantyService {
         ticket.setUpdatedBy(actorId);
         WarrantyTicket savedTicket = ticketRepository.save(ticket);
 
-        auditLogService.log(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
-                ticketId.toString(), "services", null,
-                String.valueOf(request.getServices().size()), "Added services");
+        auditLogService.logSuccess(actorId, AuditModule.WARRANTY, AuditAction.UPDATE,
+                ticketId.toString(), "warranty_ticket_services", null,
+                "Added " + request.getServices().size() + " service(s)");
 
         return mapper.toTicketResponse(savedTicket);
     }
@@ -871,5 +876,15 @@ public class WarrantyServiceImpl implements WarrantyService {
             log.warn("Invalid status string: {}", statusStr);
             return null;
         }
+    }
+
+    private List<String> getUpdatedFields(UpdateWarrantyTicketRequest request) {
+        List<String> updated = new ArrayList<>();
+        if (request.getProblemDescription() != null) updated.add("problem");
+        if (request.getAccessories() != null) updated.add("accessories");
+        if (request.getExpectedReturnDate() != null) updated.add("expected_date");
+        if (request.getNotes() != null) updated.add("notes");
+        if (request.getTechnicianId() != null) updated.add("technician");
+        return updated;
     }
 }
