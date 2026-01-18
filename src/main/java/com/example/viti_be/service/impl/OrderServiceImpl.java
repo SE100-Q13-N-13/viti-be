@@ -11,10 +11,7 @@ import com.example.viti_be.dto.response.OrderResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
-import com.example.viti_be.model.model_enum.AuditAction;
-import com.example.viti_be.model.model_enum.AuditModule;
-import com.example.viti_be.model.model_enum.OrderStatus;
-import com.example.viti_be.model.model_enum.OrderType;
+import com.example.viti_be.model.model_enum.*;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.*;
 import jakarta.transaction.Transactional;
@@ -43,12 +40,15 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private ProductRepository productRepository;
     @Autowired private ProductVariantRepository productVariantRepository;
     @Autowired private ProductSerialRepository productSerialRepository;
+
+    @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
+    @Autowired private AddressRepository addressRepository;
     @Autowired private InventoryService inventoryService;
     @Autowired private AuditLogService auditLogService;
     @Autowired private LoyaltyPointService loyaltyPointService;
     @Autowired private LoyaltyPointRepository loyaltyPointRepository;
-    @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
     @Autowired private CustomerService customerService;
+    @Autowired private NotificationService notificationService;
 
     @Override
     public OrderResponse getOrderById(UUID id) {
@@ -148,15 +148,7 @@ public class OrderServiceImpl implements OrderService {
         // ========== BƯỚC 7: Send Notification (nếu ONLINE) ==========
         if (order.getOrderType() == OrderType.ONLINE_COD ||
                 order.getOrderType() == OrderType.ONLINE_TRANSFER) {
-
-            String recipientEmail = (customer != null && customer.getEmail() != null)
-                    ? customer.getEmail()
-                    : request.getGuestEmail();
-
-            if (recipientEmail != null) {
-                // TODO: Implement email notification
-                // notificationService.sendOrderConfirmation(recipientEmail, order);
-            }
+            notificationService.notifyNewOrder(order.getId(), order.getOrderNumber());
         }
 
         // ========== BƯỚC 8: Return Response ==========
@@ -177,7 +169,13 @@ public class OrderServiceImpl implements OrderService {
         // Shipping address (cho ONLINE orders)
         if (request.getOrderType() == OrderType.ONLINE_COD ||
                 request.getOrderType() == OrderType.ONLINE_TRANSFER) {
-            order.setShippingAddress(request.getShippingAddress());
+            if (request.getCustomerId() == null){
+                order.setShippingAddress(request.getShippingAddress());
+            }
+            else {
+                Address address = addressRepository.findById(request.getAddressId())
+                        .orElseThrow(() -> new BadRequestException("Shipping address id is required for ONLINE orders"));
+            }
         }
 
         // Snapshot tier info (nếu có customer)
@@ -223,12 +221,16 @@ public class OrderServiceImpl implements OrderService {
                 if (request.getGuestEmail() == null || request.getGuestEmail().trim().isEmpty()) {
                     throw new BadRequestException("Guest email is required for online guest checkout");
                 }
+                if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
+                    throw new BadRequestException("Shipping address is required for Guest ONLINE orders");
+                }
+            }
+            else {
+                if (request.getAddressId() == null){
+                    throw new BadRequestException("Shipping address id is required for ONLINE orders");
+                }
             }
 
-            // Shipping address required for ONLINE
-            if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
-                throw new BadRequestException("Shipping address is required for ONLINE orders");
-            }
         }
 
         // 4. Validate loyalty points (chỉ cho registered customer)

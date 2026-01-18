@@ -42,4 +42,7 @@ public class CreateOrderRequest {
     private String guestPhone;
     private String guestEmail;
     private String shippingAddress;
+
+    // Address được chọn (nếu customerId != null)
+    private UUID addressId;
 }
