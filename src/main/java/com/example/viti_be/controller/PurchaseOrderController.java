@@ -4,12 +4,15 @@ import com.example.viti_be.dto.request.PurchaseOrderRequest;
 import com.example.viti_be.dto.request.ReceiveGoodsRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.PurchaseOrderResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.PurchaseOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -78,8 +81,10 @@ public class PurchaseOrderController {
     @Operation(summary = "Get all Purchase Orders")
     @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PurchaseOrderResponse>>> getAllPurchaseOrders() {
-        List<PurchaseOrderResponse> response = purchaseOrderService.getAllPurchaseOrders();
+    public ResponseEntity<ApiResponse<PageResponse<PurchaseOrderResponse>>> getAllPurchaseOrders(
+            @ParameterObject Pageable pageable
+            ) {
+        PageResponse<PurchaseOrderResponse> response = purchaseOrderService.getAllPurchaseOrders(pageable);
         return ResponseEntity.ok(ApiResponse.success(response, "Purchase Orders fetched successfully"));
     }
 

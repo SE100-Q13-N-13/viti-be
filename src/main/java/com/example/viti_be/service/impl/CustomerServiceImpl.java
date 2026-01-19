@@ -3,12 +3,15 @@ package com.example.viti_be.service.impl;
 import com.example.viti_be.dto.request.AddressRequest;
 import com.example.viti_be.dto.request.CustomerRequest;
 import com.example.viti_be.dto.response.CustomerResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -106,10 +109,9 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public List<CustomerResponse> getAllCustomers() {
-        return customerRepository.findByIsDeletedFalse().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public PageResponse<CustomerResponse> getAllCustomers(Pageable pageable) {
+        Page<Customer> customerPage = customerRepository.findByIsDeletedFalse(pageable);
+        return PageResponse.from(customerPage, this::mapToResponse);
     }
 
     @Override

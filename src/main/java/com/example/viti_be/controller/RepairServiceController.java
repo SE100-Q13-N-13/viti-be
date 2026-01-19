@@ -3,6 +3,7 @@ package com.example.viti_be.controller;
 import com.example.viti_be.dto.request.RepairServiceRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.RepairServiceResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.RepairService;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.RepairServiceService;
@@ -10,6 +11,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -70,8 +73,10 @@ public class RepairServiceController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Lấy tất cả dịch vụ sửa chữa")
-    public ResponseEntity<ApiResponse<List<RepairServiceResponse>>> getAllRepairServices() {
-        List<RepairServiceResponse> services = repairService.getAllRepairServices();
+    public ResponseEntity<ApiResponse<PageResponse<RepairServiceResponse>>> getAllRepairServices(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<RepairServiceResponse> services = repairService.getAllRepairServices(pageable);
         return ResponseEntity.ok(ApiResponse.success(services, "Lấy danh sách dịch vụ thành công"));
     }
 

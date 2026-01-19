@@ -5,6 +5,7 @@ import com.example.viti_be.dto.request.VariantRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.ProductResponse;
 import com.example.viti_be.dto.response.ProductVariantResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.mapper.ProductMapper;
 import com.example.viti_be.model.Product;
 import com.example.viti_be.model.ProductVariant;
@@ -13,6 +14,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Encoding;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,10 +35,11 @@ public class ProductController {
 
     // Lấy danh sách sản phẩm (Public)
     @GetMapping
-    public ResponseEntity<ApiResponse<List<ProductResponse>>> getAllProducts() {
-        List<Product> products = productService.getAllProducts();
-        return ResponseEntity.ok(ApiResponse.success(
-                productMapper.toProductResponseList(products),
+    public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAllProducts(
+            @ParameterObject Pageable pageable
+            ) {
+        PageResponse<ProductResponse> products = productService.getAllProducts(pageable);
+        return ResponseEntity.ok(ApiResponse.success(products,
                 "Fetch products success"
         ));
     }
