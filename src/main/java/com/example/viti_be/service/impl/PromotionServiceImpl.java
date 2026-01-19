@@ -4,6 +4,7 @@ import com.example.viti_be.dto.request.ApplyPromotionCodeRequest;
 import com.example.viti_be.dto.request.CartItemRequest;
 import com.example.viti_be.dto.request.PromotionRequest;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.*;
 import com.example.viti_be.mapper.PromotionMapper;
 import com.example.viti_be.model.*;
@@ -15,6 +16,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -124,18 +127,17 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PromotionResponse> getAllPromotions() {
-        return promotionRepository.findByIsDeletedFalse().stream()
-                .map(mapper::toResponse)
-                .collect(Collectors.toList());
+    public PageResponse<PromotionResponse> getAllPromotions(Pageable pageable) {
+        Page<Promotion> promotionPage = promotionRepository.findByIsDeletedFalse(pageable);
+        return PageResponse.from(promotionPage, mapper::toResponse);
+
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PromotionResponse> getActivePromotions() {
-        return promotionRepository.findActivePromotions(LocalDateTime.now()).stream()
-                .map(mapper::toResponse)
-                .collect(Collectors.toList());
+    public PageResponse<PromotionResponse> getActivePromotions(Pageable pageable) {
+        Page<Promotion> promotionPage = promotionRepository.findActivePromotions(LocalDateTime.now(), pageable);
+        return PageResponse.from(promotionPage, mapper::toResponse);
     }
 
     @Override

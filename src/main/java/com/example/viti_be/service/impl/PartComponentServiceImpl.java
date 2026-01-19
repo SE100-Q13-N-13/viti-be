@@ -2,6 +2,7 @@ package com.example.viti_be.service.impl;
 
 import com.example.viti_be.dto.request.PartComponentRequest;
 import com.example.viti_be.dto.response.PartComponentResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.mapper.WarrantyMapper;
@@ -17,6 +18,8 @@ import com.example.viti_be.service.PartComponentService;
 import com.example.viti_be.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -188,9 +191,21 @@ public class PartComponentServiceImpl implements PartComponentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PartComponentResponse> getAllPartComponents() {
-        List<PartComponent> components = partComponentRepository.findAllByIsDeletedFalseOrderByName();
-        return enrichPartComponentsWithStock(components);
+    public PageResponse<PartComponentResponse> getAllPartComponents(Pageable pageable) {
+        Page<PartComponent> componentPage = partComponentRepository.findAllByIsDeletedFalse(pageable);
+        List<PartComponent> rawComponents = componentPage.getContent();
+        List<PartComponentResponse> enrichedResponses = enrichPartComponentsWithStock(rawComponents);
+
+        return PageResponse.<PartComponentResponse>builder()
+                .content(enrichedResponses)
+                .totalElements(componentPage.getTotalElements())
+                .totalPages(componentPage.getTotalPages())
+                .currentPage(componentPage.getNumber())
+                .pageSize(componentPage.getSize())
+                .last(componentPage.isLast())
+                .first(componentPage.isFirst())
+                .numberOfElements(componentPage.getNumberOfElements())
+                .build();
     }
 
     @Override

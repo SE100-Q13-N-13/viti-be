@@ -2,6 +2,8 @@ package com.example.viti_be.repository;
 
 import com.example.viti_be.model.WarrantyTicket;
 import com.example.viti_be.model.model_enum.WarrantyTicketStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,8 @@ public interface WarrantyTicketRepository extends JpaRepository<WarrantyTicket, 
     Optional<WarrantyTicket> findByTicketNumberAndIsDeletedFalse(String ticketNumber);
 
     // Find all active tickets
+    Page<WarrantyTicket> findAllByIsDeletedFalseOrderByCreatedAtDesc(Pageable pageable);
+
     List<WarrantyTicket> findAllByIsDeletedFalseOrderByCreatedAtDesc();
 
     // Find by serial number
@@ -55,6 +59,11 @@ public interface WarrantyTicketRepository extends JpaRepository<WarrantyTicket, 
     @Query("SELECT wt FROM WarrantyTicket wt WHERE wt.expectedReturnDate < :now " +
             "AND wt.status NOT IN ('RETURNED', 'CANCELLED') AND wt.isDeleted = false")
     List<WarrantyTicket> findOverdueTickets(@Param("now") LocalDateTime now);
+
+
+    @Query("SELECT wt FROM WarrantyTicket wt WHERE wt.expectedReturnDate < :now " +
+            "AND wt.status NOT IN ('RETURNED', 'CANCELLED') AND wt.isDeleted = false")
+    Page<WarrantyTicket> findOverdueTickets(@Param("now") LocalDateTime now, Pageable pageable);
 
     // Search tickets (by ticket number, serial, customer name/phone)
     @Query("SELECT wt FROM WarrantyTicket wt WHERE " +

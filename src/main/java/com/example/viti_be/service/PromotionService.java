@@ -3,7 +3,9 @@ package com.example.viti_be.service;
 import com.example.viti_be.dto.request.ApplyPromotionCodeRequest;
 import com.example.viti_be.dto.request.PromotionRequest;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Order;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -36,12 +38,12 @@ public interface PromotionService {
     /**
      * Lấy tất cả promotions
      */
-    List<PromotionResponse> getAllPromotions();
+    PageResponse<PromotionResponse> getAllPromotions(Pageable pageable);
 
     /**
      * Lấy active promotions
      */
-    List<PromotionResponse> getActivePromotions();
+    PageResponse<PromotionResponse> getActivePromotions(Pageable pageable);
 
     /**
      * Toggle promotion status (ACTIVE <-> INACTIVE)

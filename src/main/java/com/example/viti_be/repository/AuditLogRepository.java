@@ -22,6 +22,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     List<AuditLog> findAllByActorId(UUID actorId);
     
     List<AuditLog> findAllByResourceId(String resourceId);
+    Page<AuditLog> findAllByResourceIdAndResourceType(String resourceId, String resourceType, Pageable pageable);
     
     @Query("SELECT a FROM AuditLog a WHERE a.module = :module AND a.createdAt BETWEEN :startDate AND :endDate ORDER BY a.createdAt DESC")
     List<AuditLog> findByModuleAndDateRange(

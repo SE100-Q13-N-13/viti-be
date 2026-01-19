@@ -3,12 +3,15 @@ package com.example.viti_be.controller;
 import com.example.viti_be.dto.request.PartComponentRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.PartComponentResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.PartComponentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -71,8 +74,10 @@ public class PartComponentController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Lấy tất cả linh kiện")
-    public ResponseEntity<ApiResponse<List<PartComponentResponse>>> getAllPartComponents() {
-        List<PartComponentResponse> parts = partComponentService.getAllPartComponents();
+    public ResponseEntity<ApiResponse<PageResponse<PartComponentResponse>>> getAllPartComponents(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<PartComponentResponse> parts = partComponentService.getAllPartComponents(pageable);
         return ResponseEntity.ok(ApiResponse.success(parts, "Lấy danh sách linh kiện thành công"));
     }
 
