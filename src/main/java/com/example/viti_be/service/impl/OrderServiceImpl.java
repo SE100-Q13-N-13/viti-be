@@ -4,7 +4,6 @@ import com.example.viti_be.dto.request.CustomerRequest;
 import com.example.viti_be.dto.response.CustomerResponse;
 import com.example.viti_be.dto.response.LoyaltyConfigResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
-import com.example.viti_be.event.OrderCreatedEvent;
 import com.example.viti_be.mapper.OrderMapper;
 import com.example.viti_be.dto.request.CreateOrderRequest;
 import com.example.viti_be.dto.request.OrderItemRequest;
@@ -12,16 +11,12 @@ import com.example.viti_be.dto.response.OrderResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
-import com.example.viti_be.model.model_enum.AuditAction;
-import com.example.viti_be.model.model_enum.AuditModule;
-import com.example.viti_be.model.model_enum.OrderStatus;
-import com.example.viti_be.model.model_enum.OrderType;
+import com.example.viti_be.model.model_enum.*;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.*;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -45,13 +40,15 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private ProductRepository productRepository;
     @Autowired private ProductVariantRepository productVariantRepository;
     @Autowired private ProductSerialRepository productSerialRepository;
+
+    @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
+    @Autowired private AddressRepository addressRepository;
     @Autowired private InventoryService inventoryService;
     @Autowired private AuditLogService auditLogService;
     @Autowired private LoyaltyPointService loyaltyPointService;
     @Autowired private LoyaltyPointRepository loyaltyPointRepository;
-    @Autowired private LoyaltyPointTransactionRepository loyaltyPointTransactionRepository;
     @Autowired private CustomerService customerService;
-    @Autowired private ApplicationEventPublisher eventPublisher;
+    @Autowired private NotificationService notificationService;
 
     @Override
     public OrderResponse getOrderById(UUID id) {
@@ -131,23 +128,13 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> orderItems = processOrderItems(request.getItems(), order, processingActorId);
         order.setItems(orderItems);
 
-        // ========== BƯỚC 5: Apply Promotions ==========
-//        if (request.getPromotionIds() != null && !request.getPromotionIds().isEmpty()) {
-//            applyPromotions(order, request.getPromotionIds());
-//        }
-
-        // ========== BƯỚC 6: Apply Loyalty Points ==========
-//        if (request.getLoyaltyPointsToUse() != null && request.getLoyaltyPointsToUse() > 0) {
-//            applyLoyaltyPoints(order, request.getLoyaltyPointsToUse());
-//        }
-
-        // ========== BƯỚC 7: Calculate Order Total ==========
+        // ========== BƯỚC 5: Calculate Order Total ==========
         calculateOrderTotal(order, request);
 
-        // ========== BƯỚC 8: Save Order ==========
+        // ========== BƯỚC 6: Save Order ==========
         order = repo.save(order);
 
-        // ========== BƯỚC 8.5: Update Serial with OrderId ==========
+        // ========== BƯỚC 6.5: Update Serial with OrderId ==========
         for (OrderItem item : order.getItems()) {
             if (item.getProductSerial() != null) {
                 inventoryService.markSerialAsSold(
@@ -158,26 +145,13 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // ========== BƯỚC 9: Send Notification (nếu ONLINE) ==========
+        // ========== BƯỚC 7: Send Notification (nếu ONLINE) ==========
         if (order.getOrderType() == OrderType.ONLINE_COD ||
                 order.getOrderType() == OrderType.ONLINE_TRANSFER) {
-
-            String recipientEmail = (customer != null && customer.getEmail() != null)
-                    ? customer.getEmail()
-                    : request.getGuestEmail();
-
-            if (recipientEmail != null) {
-                // TODO: Implement email notification
-                // notificationService.sendOrderConfirmation(recipientEmail, order);
-            }
+            notificationService.notifyNewOrder(order.getId(), order.getOrderNumber());
         }
 
-        // ========== BƯỚC 9.5: Publish OrderCreatedEvent ==========
-        // Event sẽ được xử lý SAU KHI transaction commit thành công
-        // Notification được tạo async, không block luồng tạo đơn
-        eventPublisher.publishEvent(new OrderCreatedEvent(this, order.getId(), order.getOrderNumber()));
-
-        // ========== BƯỚC 10: Return Response ==========
+        // ========== BƯỚC 8: Return Response ==========
         return mapToOrderResponse(order);
     }
 
@@ -195,7 +169,13 @@ public class OrderServiceImpl implements OrderService {
         // Shipping address (cho ONLINE orders)
         if (request.getOrderType() == OrderType.ONLINE_COD ||
                 request.getOrderType() == OrderType.ONLINE_TRANSFER) {
-            order.setShippingAddress(request.getShippingAddress());
+            if (request.getCustomerId() == null){
+                order.setShippingAddress(request.getShippingAddress());
+            }
+            else {
+                Address address = addressRepository.findById(request.getAddressId())
+                        .orElseThrow(() -> new BadRequestException("Shipping address id is required for ONLINE orders"));
+            }
         }
 
         // Snapshot tier info (nếu có customer)
@@ -241,12 +221,16 @@ public class OrderServiceImpl implements OrderService {
                 if (request.getGuestEmail() == null || request.getGuestEmail().trim().isEmpty()) {
                     throw new BadRequestException("Guest email is required for online guest checkout");
                 }
+                if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
+                    throw new BadRequestException("Shipping address is required for Guest ONLINE orders");
+                }
+            }
+            else {
+                if (request.getAddressId() == null){
+                    throw new BadRequestException("Shipping address id is required for ONLINE orders");
+                }
             }
 
-            // Shipping address required for ONLINE
-            if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
-                throw new BadRequestException("Shipping address is required for ONLINE orders");
-            }
         }
 
         // 4. Validate loyalty points (chỉ cho registered customer)
@@ -280,11 +264,11 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        // 3. Promotion Discount (TODO: Implement when needed)
+        // 3. Promotion Discount
         BigDecimal promotionDiscount = BigDecimal.ZERO;
         if (request.getPromotionIds() != null && !request.getPromotionIds().isEmpty()) {
-            // promotionDiscount = calculatePromotionDiscount(order, request.getPromotionIds());
-            // totalDiscount = totalDiscount.add(promotionDiscount);
+            promotionDiscount = applyPromotions(order, request.getPromotionIds());
+            totalDiscount = totalDiscount.add(promotionDiscount);
         }
 
         // 4. Loyalty Points Discount (áp dụng sau cùng)

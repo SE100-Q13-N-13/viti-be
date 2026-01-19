@@ -37,15 +37,23 @@ public class OrderController {
      * POST /api/orders
      */
     @PostMapping
-    @Operation(summary = "Create new order", description = "If order type OFFLINE: employeeId = current user id, require customer id or customer info\n" +
-            "If order type ONLINE_COD or ONLINE_TRANSFER: customerId = current user Id, or create new customer with info"
+    @Operation(summary = "Create new order", description = """
+            If order type OFFLINE: employeeId = current user id, require customer id or customer info
+            If order type ONLINE_COD or ONLINE_TRANSFER: customerId = current user Id, or create new customer with info
+            For ONLINE, pass address as shippingAddress if guest order, pass addressId if customer order
+            """
     )
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @Valid @RequestBody CreateOrderRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
-        UUID actorId = userImpl.getId();
+        UUID actorId = null;
+
+        if (userDetails != null) {
+            UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
+            actorId = userImpl.getId();
+        }
+
         OrderResponse newOrder = orderService.createOrder(request, actorId);
 
         return ResponseEntity.ok(ApiResponse.success(newOrder, "Tạo đơn hàng thành công"));
