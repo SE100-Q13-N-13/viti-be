@@ -61,6 +61,10 @@ public class DataInitializer implements CommandLineRunner {
             Role employeeRole = createRoleIfNotExists("ROLE_EMPLOYEE", "Employee role");
             Role customerRole = createRoleIfNotExists("ROLE_CUSTOMER", "Customer role");
             Role technicianRole = createRoleIfNotExists("ROLE_TECHNICIAN", "Technician role");
+            Role cashierRole = createRoleIfNotExists("ROLE_CASHIER", "Cashier role");
+            Role warehouseRole = createRoleIfNotExists("ROLE_WAREHOUSE", "Warehouse role");
+            Role accountantRole = createRoleIfNotExists("ROLE_ACCOUNTANT", "Accountant role");
+
 
             // 2. Create customer tiers
             CustomerTier bronzeTier = createCustomerTier("Bronze", 0, BigDecimal.valueOf(0.05));
