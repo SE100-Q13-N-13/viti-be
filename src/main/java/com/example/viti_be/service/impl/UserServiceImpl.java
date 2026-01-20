@@ -60,10 +60,37 @@ public class UserServiceImpl implements UserService {
     private RoleRepository roleRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public UserResponse getUserProfile(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return userMapper.toUserResponse(user);
+        UserResponse response = userMapper.toUserResponse(user);
+        Optional<Customer> customerOpt = customerRepository.findByUser(user);
+
+        if (customerOpt.isPresent()) {
+            Customer customer = customerOpt.get();
+
+            if (customer.getTier() != null) {
+                response.setTier(UserResponse.UserTierInfo.builder()
+                        .name(customer.getTier().getName())
+                        .discountRate(customer.getTier().getDiscountRate())
+                        .minPoint(customer.getTier().getMinPoint())
+                        .description(customer.getTier().getDescription())
+                        .build());
+            }
+
+            if (customer.getLoyaltyPoint() != null) {
+                var lp = customer.getLoyaltyPoint();
+                response.setLoyaltyPoint(UserResponse.UserLoyaltyInfo.builder()
+                        .totalPoints(lp.getTotalPoints())
+                        .pointsAvailable(lp.getPointsAvailable())
+                        .pointsUsed(lp.getPointsUsed())
+                        .pointsToNextTier(lp.getPointsAvailable())
+                        .build());
+            }
+        }
+
+        return response;
     }
 
     @Override

@@ -11,8 +11,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.lang.reflect.Field;
-
 @Service
 @Slf4j
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -35,22 +33,22 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 //        }
 
         if (UserStatus.PENDING.equals(user.getStatus())) {
-            log.warn("⚠️ User {} is PENDING", email);
+            log.warn("User {} is PENDING", email);
             throw new RuntimeException("Account is not verified. Please check your email for verification code.");
         }
 
         if (UserStatus.SUSPENDED.equals(user.getStatus())) {
-            log.warn("⚠️ User {} is SUSPENDED", email);
+            log.warn("User {} is SUSPENDED", email);
             throw new RuntimeException("Account has been suspended. Please contact support.");
         }
 
         if (UserStatus.TERMINATED.equals(user.getStatus())) {
-            log.warn("⚠️ User {} is TERMINATED", email);
+            log.warn("User {} is TERMINATED", email);
             throw new RuntimeException("Account has been terminated.");
         }
 
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
-        log.info("✅ UserDetails created - isEnabled(): {}", userDetails.isEnabled());
+        log.info("UserDetails created - isEnabled(): {}", userDetails.isEnabled());
 
         return userDetails;
     }

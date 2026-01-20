@@ -29,6 +29,8 @@ public interface UserMapper {
     @Mapping(target = "isActive", expression = "java(user.getIsActive())")
     @Mapping(target = "status", source = "status")
     @Mapping(target = "roles", ignore = true)
+    @Mapping(target = "tier", ignore = true)
+    @Mapping(target = "loyaltyPoint", ignore = true)
     UserResponse toUserResponse(User user);
 
     /**

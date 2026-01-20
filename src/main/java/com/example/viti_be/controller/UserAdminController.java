@@ -4,7 +4,6 @@ import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.UserDetailResponse;
 import com.example.viti_be.dto.response.UserSummaryResponse;
-import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.UserService;
@@ -162,6 +161,11 @@ public class UserAdminController {
         roleCounts.put("ROLE_ADMIN", userService.countUsersByRole("ROLE_ADMIN"));
         roleCounts.put("ROLE_EMPLOYEE", userService.countUsersByRole("ROLE_EMPLOYEE"));
         roleCounts.put("ROLE_CUSTOMER", userService.countUsersByRole("ROLE_CUSTOMER"));
+        roleCounts.put("ROLE_CASHIER", userService.countUsersByRole("ROLE_CASHIER"));
+        roleCounts.put("ROLE_ACCOUNTANT", userService.countUsersByRole("ROLE_ACCOUNTANT"));
+        roleCounts.put("ROLE_WAREHOUSE", userService.countUsersByRole("ROLE_WAREHOUSE"));
+        roleCounts.put("ROLE_TECHNICIAN", userService.countUsersByRole("ROLE_TECHNICIAN"));
+
         stats.put("byRole", roleCounts);
 
         // Total
