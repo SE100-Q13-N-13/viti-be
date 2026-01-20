@@ -36,7 +36,7 @@ import java.util.UUID;
         Hệ thống notification sử dụng **Server-Sent Events (SSE)** để push thông báo realtime kết hợp với REST APIs để quản lý.
         
         ### Luồng hoạt động
-        1. **Frontend subscribe SSE stream** khi admin vào trang quản trị
+        1. **Frontend subscribe SSE stream** khi admin vào trang quản trị (login)
         2. **Server push event** khi có sự kiện mới (đơn hàng mới, cảnh báo tồn kho, etc.)
         3. **Frontend nhận event** và hiển thị notification popup/toast
         4. **Frontend gọi REST API** để lấy danh sách, đánh dấu đã đọc
@@ -70,40 +70,8 @@ public class NotificationController {
                 **Mục đích:** Tạo kết nối SSE để nhận thông báo realtime khi có sự kiện mới.
                 
                 **Khi nào sử dụng:**
-                - Khi admin vào trang quản trị (mount component)
+                - Khi admin vào trang quản trị (login)
                 - Reconnect khi connection bị đóng
-                
-                **Implementation Frontend:**
-                ```javascript
-                const eventSource = new EventSource('/api/admin/notifications/stream', {
-                  headers: { 'Authorization': 'Bearer TOKEN' }
-                });
-                
-                // Listen for connection established
-                eventSource.addEventListener('connected', (e) => {
-                  console.log('Connected:', e.data);
-                });
-                
-                // Listen for new order notifications
-                eventSource.addEventListener('ORDER_NEW', (e) => {
-                  const notification = JSON.parse(e.data);
-                  // Hiển thị toast/popup
-                  showNotificationToast(notification);
-                  // Tăng badge count
-                  updateUnreadCount();
-                });
-                
-                // Handle errors & reconnect
-                eventSource.onerror = (error) => {
-                  console.error('SSE Error:', error);
-                  eventSource.close();
-                  // Reconnect after delay
-                  setTimeout(() => reconnectSSE(), 3000);
-                };
-                
-                // Cleanup khi unmount
-                return () => eventSource.close();
-                ```
                 
                 **Response:** Stream of Server-Sent Events
                 - Event `connected`: Connection established
@@ -135,27 +103,7 @@ public class NotificationController {
                 - Pagination khi scroll/click next page
                 - Sau khi nhận SSE event (optional - refresh list)
                 
-                **Implementation Frontend:**
-                ```javascript
-                // Load danh sách notification
-                const fetchNotifications = async (page = 0, size = 20) => {
-                  const response = await fetch(
-                    `/api/admin/notifications?page=${page}&size=${size}&sort=createdAt,desc`,
-                    { headers: { 'Authorization': 'Bearer TOKEN' } }
-                  );
-                  const data = await response.json();
-                  
-                  // Render danh sách
-                  renderNotificationList(data.data.content);
-                  
-                  // Update pagination info
-                  updatePagination({
-                    currentPage: data.data.currentPage,
-                    totalPages: data.data.totalPages,
-                    totalElements: data.data.totalElements
-                  });
-                };
-                ```
+                
                 
                 **Query Parameters:**
                 - `page`: Số trang (0-based, mặc định: 0)
@@ -185,17 +133,7 @@ public class NotificationController {
                 - Hiếm khi dùng (thông tin đã có trong danh sách)
                 - Có thể dùng để refresh thông tin notification đơn lẻ
                 
-                **Implementation Frontend:**
-                ```javascript
-                const getNotificationDetail = async (notificationId) => {
-                  const response = await fetch(
-                    `/api/admin/notifications/${notificationId}`,
-                    { headers: { 'Authorization': 'Bearer TOKEN' } }
-                  );
-                  const data = await response.json();
-                  return data.data; // NotificationResponse
-                };
-                ```
+                
                 
                 **Response:** NotificationResponse object
                 """
@@ -222,31 +160,7 @@ public class NotificationController {
                 - Sau khi đánh dấu đã đọc (giảm count)
                 - Polling định kỳ nếu không dùng SSE (không khuyến khích)
                 
-                **Implementation Frontend:**
-                ```javascript
-                // Load unread count khi mount
-                const fetchUnreadCount = async () => {
-                  const response = await fetch(
-                    '/api/admin/notifications/unread-count',
-                    { headers: { 'Authorization': 'Bearer TOKEN' } }
-                  );
-                  const data = await response.json();
-                  
-                  // Update badge
-                  updateBadge(data.data.unreadCount);
-                };
                 
-                // Tăng count khi nhận SSE event
-                eventSource.addEventListener('ORDER_NEW', () => {
-                  setUnreadCount(prev => prev + 1);
-                });
-                
-                // Giảm count khi mark as read
-                const markAsReadAndUpdateCount = async (id) => {
-                  await markAsRead(id);
-                  setUnreadCount(prev => Math.max(0, prev - 1));
-                };
-                ```
                 
                 **Response:** `{ "unreadCount": number }`
                 """
@@ -273,37 +187,7 @@ public class NotificationController {
                 - User hover notification sau vài giây (optional - auto mark)
                 - User click để navigate tới chi tiết entity (order, product, etc.)
                 
-                **Implementation Frontend:**
-                ```javascript
-                const markNotificationAsRead = async (notificationId) => {
-                  await fetch(
-                    `/api/admin/notifications/${notificationId}/read`,
-                    {
-                      method: 'PATCH',
-                      headers: { 'Authorization': 'Bearer TOKEN' }
-                    }
-                  );
-                  
-                  // Update UI
-                  updateNotificationStyle(notificationId, { isRead: true });
-                  
-                  // Giảm unread count
-                  setUnreadCount(prev => Math.max(0, prev - 1));
-                };
                 
-                // Tự động mark as read khi click
-                const handleNotificationClick = async (notification) => {
-                  // Mark as read
-                  if (!notification.isRead) {
-                    await markNotificationAsRead(notification.id);
-                  }
-                  
-                  // Navigate tới entity detail
-                  if (notification.entityType === 'ORDER') {
-                    navigate(`/orders/${notification.entityId}`);
-                  }
-                };
-                ```
                 
                 **Response:** Success message (data = null)
                 """
@@ -326,34 +210,7 @@ public class NotificationController {
                 - User click button "Đánh dấu tất cả đã đọc"
                 - User muốn clear tất cả badge notifications
                 
-                **Implementation Frontend:**
-                ```javascript
-                const markAllNotificationsAsRead = async () => {
-                  await fetch(
-                    '/api/admin/notifications/mark-all-read',
-                    {
-                      method: 'PATCH',
-                      headers: { 'Authorization': 'Bearer TOKEN' }
-                    }
-                  );
-                  
-                  // Reset unread count về 0
-                  setUnreadCount(0);
-                  
-                  // Update UI - mark tất cả notification là read
-                  setNotifications(prev => 
-                    prev.map(n => ({ ...n, isRead: true }))
-                  );
-                  
-                  // Hide badge
-                  hideBadge();
-                };
-                
-                // UI Button
-                <button onClick={markAllNotificationsAsRead}>
-                  Đánh dấu tất cả đã đọc
-                </button>
-                ```
+               
                 
                 **Response:** Success message (data = null)
                 """
