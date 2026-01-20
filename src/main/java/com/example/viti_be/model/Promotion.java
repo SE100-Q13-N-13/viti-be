@@ -68,6 +68,10 @@ public class Promotion extends BaseEntity {
     @Column(nullable = false)
     private Integer priority; // Số càng lớn ưu tiên càng cao (dùng khi chọn promotion)
 
+    @Column(name = "requires_code")
+    @Builder.Default
+    private Boolean requiresCode = false;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

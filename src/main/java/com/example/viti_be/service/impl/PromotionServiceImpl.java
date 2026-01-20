@@ -182,32 +182,73 @@ public class PromotionServiceImpl implements PromotionService {
     @Override
     @Transactional(readOnly = true)
     public CartDiscountCalculationResponse applyPromotionCode(ApplyPromotionCodeRequest request) {
-        // Tìm promotion theo code
-        Promotion promotion = promotionRepository.findByCodeAndIsDeletedFalse(request.getCode().toUpperCase())
-                .orElseThrow(() -> new PromotionNotFoundException(request.getCode()));
+        if (request.getCode() == null || request.getCode().trim().isEmpty()) {
+            throw new PromotionValidationException("Promotion code cannot be empty");
+        }
 
-        // Validate promotion
+        String codeToApply = request.getCode().trim().toUpperCase();
+
+        Promotion promotion = promotionRepository.findByCodeAndIsDeletedFalse(codeToApply)
+                .orElseThrow(() -> new PromotionNotFoundException(codeToApply));
+
         validatePromotionForApply(promotion, request.getCustomerId());
 
-        // Calculate discount với promotion này
-        return calculateCartDiscountWithCodes(request, Collections.singletonList(request.getCode()));
+        List<String> currentCodes = request.getAppliedCodes() != null
+                ? new ArrayList<>(request.getAppliedCodes())
+                : new ArrayList<>();
+
+        if (currentCodes.stream().anyMatch(c -> c.equalsIgnoreCase(codeToApply))) {
+            throw new PromotionValidationException("Promotion code '" + codeToApply + "' is already applied");
+        }
+
+
+        currentCodes.add(codeToApply);
+
+        // Calculate discount với tất cả codes (bao gồm code mới)
+        return calculateCartDiscountWithCodes(request, currentCodes);
     }
 
     @Override
     @Transactional(readOnly = true)
     public CartDiscountCalculationResponse calculateCartDiscount(ApplyPromotionCodeRequest request) {
-        // Auto-apply: Tìm tất cả promotions có thể áp dụng
-        return calculateCartDiscountWithCodes(request, Collections.emptyList());
+        List<String> codes = request.getAppliedCodes() != null
+                ? new ArrayList<>(request.getAppliedCodes())
+                : new ArrayList<>();
+
+        codes = codes.stream()
+                .filter(code -> code != null && !code.trim().isEmpty())
+                .map(code -> code.trim().toUpperCase())
+                .distinct() // Remove duplicates
+                .collect(Collectors.toList());
+
+        return calculateCartDiscountWithCodes(request, codes);
     }
 
     @Override
     @Transactional(readOnly = true)
     public CartDiscountCalculationResponse removePromotionFromCart(String code, ApplyPromotionCodeRequest cartRequest) {
-        // Tính toán lại cart mà không có promotion này
-        List<String> codes = new ArrayList<>();
-        // Logic: Nếu có codes khác trong request, giữ lại trừ code bị remove
-        // (Trong thực tế, FE nên gửi list codes hiện tại)
-        return calculateCartDiscountWithCodes(cartRequest, codes);
+        if (code == null || code.trim().isEmpty()) {
+            throw new PromotionValidationException("Code to remove cannot be empty");
+        }
+
+        String codeToRemove = code.trim().toUpperCase();
+
+        List<String> currentCodes = cartRequest.getAppliedCodes() != null
+                ? new ArrayList<>(cartRequest.getAppliedCodes())
+                : new ArrayList<>();
+
+        List<String> remainingCodes = currentCodes.stream()
+                .filter(c -> c != null && !c.trim().isEmpty())
+                .map(c -> c.trim().toUpperCase())
+                .filter(c -> !c.equals(codeToRemove))
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (remainingCodes.size() == currentCodes.size()) {
+            throw new PromotionValidationException("Code '" + code + "' is not applied to cart");
+        }
+
+        return calculateCartDiscountWithCodes(cartRequest, remainingCodes);
     }
 
     /**
@@ -736,8 +777,18 @@ public class PromotionServiceImpl implements PromotionService {
         List<Promotion> promotions = promotionRepository.findApplicableProductPromotions(
                 productId, categoryId, now);
 
+        Set<String> manualCodesUpper = manualCodes.stream()
+                .map(String::toUpperCase)
+                .collect(Collectors.toSet());
+
         return promotions.stream()
                 .filter(p -> {
+                    if (Boolean.TRUE.equals(p.getRequiresCode())) {
+                        // Chỉ apply nếu code được nhập
+                        if (!manualCodesUpper.contains(p.getCode())) {
+                            return false;
+                        }
+                    }
                     // Check min order value (skip for product promotions)
                     // Check tier restriction
                     if (customerId == null && p.getApplicableCustomerTiers() != null) {
@@ -764,8 +815,18 @@ public class PromotionServiceImpl implements PromotionService {
         LocalDateTime now = LocalDateTime.now();
         List<Promotion> promotions = promotionRepository.findApplicableOrderPromotions(now);
 
+        Set<String> manualCodesUpper = manualCodes.stream()
+                .map(String::toUpperCase)
+                .collect(Collectors.toSet());
+
         return promotions.stream()
                 .filter(p -> {
+                    if (Boolean.TRUE.equals(p.getRequiresCode())) {
+                        // Chỉ apply nếu code được nhập
+                        if (!manualCodesUpper.contains(p.getCode())) {
+                            return false;
+                        }
+                    }
                     // Check min order value
                     if (p.getMinOrderValue() != null &&
                             orderAmount.compareTo(p.getMinOrderValue()) < 0) {
