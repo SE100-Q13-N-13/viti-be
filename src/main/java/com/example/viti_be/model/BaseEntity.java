@@ -42,6 +42,7 @@ public abstract class BaseEntity {
 
     @Column(name = "is_deleted")
     @Builder.Default
+    @Access(AccessType.FIELD)
     private Boolean isDeleted = false;
 
     @Override

@@ -283,10 +283,7 @@ public class InventoryServiceImpl implements InventoryService {
         Inventory inventory = getOrCreateInventory(productVariantId, actorId);
 
         if (inventory.getQuantityAvailable() < quantity) {
-            throw new BadRequestException(String.format(
-                    "Không đủ tồn kho khả dụng cho sản phẩm %s. Yêu cầu: %d, Còn: %d",
-                    inventory.getProductVariant().getSku(), quantity, inventory.getQuantityAvailable()
-            ));
+            throw new BadRequestException("No stock available for the required product");
         }
 
         // Logic chuyển dịch trạng thái kho

@@ -283,6 +283,7 @@ public class DataInitializer implements CommandLineRunner {
         user.setPhone(phone);
         user.setPassword(passwordEncoder.encode(password));
         user.setStatus(status);
+        user.setIsActive(true);
 
         User savedUser = userRepository.save(user);
 
