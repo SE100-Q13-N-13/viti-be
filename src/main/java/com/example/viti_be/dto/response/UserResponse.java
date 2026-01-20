@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -20,18 +21,6 @@ public class UserResponse {
     private String avatar;
     private UserStatus status;
     private Boolean isFirstLogin;
-
-    // Mapper
-    public static UserResponse fromEntity(User user) {
-        return new UserResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getFullName(),
-                user.getPhone(),
-                user.getAvatar(),
-                user.getStatus(),
-                user.getIsFirstLogin()
-        );
-    }
+    private Boolean isActive;
+    private Set<String> roles;
 }
