@@ -14,7 +14,7 @@ public class OrderItemMapper {
                 .sku(variant.getSku())
                 .productName(variant.getProduct() != null ? variant.getProduct().getName() : "Unknown Product")
                 .variantName(variant.getVariantName())
-                // .productImage(variant.getImageUrl())
+                .productImage(variant.getProduct().getImageUrl())
 
                 // Serial info
                 .serialNumber(item.getProductSerial() != null ? item.getProductSerial().getSerialNumber() : null)

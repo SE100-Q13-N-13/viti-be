@@ -16,12 +16,14 @@ import io.swagger.v3.oas.annotations.media.Encoding;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,9 +38,13 @@ public class ProductController {
     // Lấy danh sách sản phẩm (Public)
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getAllProducts(
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) UUID supplierId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
             @ParameterObject Pageable pageable
             ) {
-        PageResponse<ProductResponse> products = productService.getAllProducts(pageable);
+        PageResponse<ProductResponse> products = productService.getAllProducts(categoryId, supplierId, minPrice, maxPrice, pageable);
         return ResponseEntity.ok(ApiResponse.success(products,
                 "Fetch products success"
         ));

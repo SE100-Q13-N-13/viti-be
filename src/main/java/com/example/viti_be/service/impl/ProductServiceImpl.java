@@ -15,9 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,8 +100,13 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public PageResponse<ProductResponse> getAllProducts(Pageable pageable) {
-        Page<Product> productPage = productRepository.findAllByIsDeletedFalse(pageable);
+    public PageResponse<ProductResponse> getAllProducts(
+            UUID categoryId,
+            UUID supplierId,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,Pageable pageable
+    ) {
+        Page<Product> productPage = productRepository.findAllWithFilters(categoryId, supplierId, minPrice, maxPrice, pageable);
         return PageResponse.from(productPage, productMapper::toProductResponse);
     }
 
