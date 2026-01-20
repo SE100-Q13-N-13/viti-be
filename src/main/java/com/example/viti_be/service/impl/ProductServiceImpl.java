@@ -2,6 +2,9 @@ package com.example.viti_be.service.impl;
 
 import com.example.viti_be.dto.request.ProductRequest;
 import com.example.viti_be.dto.request.VariantRequest;
+import com.example.viti_be.dto.response.ProductResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
+import com.example.viti_be.mapper.ProductMapper;
 import com.example.viti_be.model.*;
 import com.example.viti_be.repository.*;
 import com.example.viti_be.service.CloudinaryService;
@@ -10,6 +13,8 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,6 +41,8 @@ public class ProductServiceImpl implements ProductService {
     CategorySpecRepository categorySpecRepository;
     @Autowired
     ObjectMapper objectMapper;
+
+    @Autowired ProductMapper productMapper;
 
     @Override
     public Product createProduct(ProductRequest request, MultipartFile image) {
@@ -91,8 +98,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<Product> getAllProducts() {
-        return productRepository.findAllByIsDeletedFalse();
+    public PageResponse<ProductResponse> getAllProducts(Pageable pageable) {
+        Page<Product> productPage = productRepository.findAllByIsDeletedFalse(pageable);
+        return PageResponse.from(productPage, productMapper::toProductResponse);
     }
 
     @Override

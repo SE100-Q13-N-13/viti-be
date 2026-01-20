@@ -7,6 +7,7 @@ import com.example.viti_be.dto.request.ReceiveGoodsRequest;
 import com.example.viti_be.dto.response.PartComponentResponse;
 import com.example.viti_be.dto.response.PurchaseOrderItemResponse;
 import com.example.viti_be.dto.response.PurchaseOrderResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.mapper.WarrantyMapper;
@@ -22,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -263,10 +266,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     @Override
-    public List<PurchaseOrderResponse> getAllPurchaseOrders() {
-        return purchaseOrderRepository.findAllByIsDeletedFalse().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public PageResponse<PurchaseOrderResponse> getAllPurchaseOrders(Pageable pageable) {
+        Page<PurchaseOrder> page = purchaseOrderRepository.findAllByIsDeletedFalse(pageable);
+        return PageResponse.from(page, this::mapToResponse);
     }
 
     @Override

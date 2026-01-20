@@ -1,6 +1,8 @@
 package com.example.viti_be.repository;
 
 import com.example.viti_be.model.RepairService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -15,7 +17,7 @@ public interface RepairServiceRepository extends JpaRepository<RepairService, UU
 
     List<RepairService> findByIsActiveTrueAndIsDeletedFalseOrderByName();
 
-    List<RepairService> findAllByIsDeletedFalseOrderByName();
+    Page<RepairService> findAllByIsDeletedFalseOrderByName(Pageable pageable);
 
     List<RepairService> findByCategoryAndIsActiveTrueAndIsDeletedFalse(String category);
 }

@@ -1,6 +1,8 @@
 package com.example.viti_be.repository;
 
 import com.example.viti_be.model.PartComponent;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -17,6 +19,7 @@ public interface PartComponentRepository extends JpaRepository<PartComponent, UU
     List<PartComponent> findByIsDeletedFalseOrderByName();
 
     List<PartComponent> findAllByIsDeletedFalseOrderByName();
+    Page<PartComponent> findAllByIsDeletedFalse(Pageable pageable);
 
 
     List<PartComponent> findByPartTypeAndIsDeletedFalse(String partType);

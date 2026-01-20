@@ -3,6 +3,8 @@ package com.example.viti_be.repository;
 import com.example.viti_be.model.*;
 import com.example.viti_be.model.model_enum.PromotionScope;
 import com.example.viti_be.model.model_enum.PromotionStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
     Optional<Promotion> findByCodeAndIsDeletedFalse(String code);
 
     List<Promotion> findByIsDeletedFalse();
+    Page<Promotion> findByIsDeletedFalse(Pageable pageable);
 
     List<Promotion> findByStatusAndIsDeletedFalse(PromotionStatus status);
 
@@ -28,7 +31,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
     @Query("SELECT p FROM Promotion p WHERE p.status = 'ACTIVE' " +
             "AND p.startDate <= :now AND p.endDate > :now " +
             "AND p.isDeleted = false")
-    List<Promotion> findActivePromotions(@Param("now") LocalDateTime now);
+    Page<Promotion> findActivePromotions(@Param("now") LocalDateTime now, Pageable pageable);
 
     /**
      * Tìm promotions cần auto-expire (end_date qua + status vẫn ACTIVE)

@@ -2,6 +2,7 @@ package com.example.viti_be.service.impl;
 
 import com.example.viti_be.dto.request.RepairServiceRequest;
 import com.example.viti_be.dto.response.RepairServiceResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.mapper.WarrantyMapper;
 import com.example.viti_be.model.RepairService;
@@ -13,6 +14,8 @@ import com.example.viti_be.service.InventoryService;
 import com.example.viti_be.service.RepairServiceService;
 import com.example.viti_be.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -116,9 +119,9 @@ public class RepairServiceServiceImpl implements RepairServiceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RepairServiceResponse> getAllRepairServices() {
-        List<RepairService> services = repairServiceRepository.findAllByIsDeletedFalseOrderByName();
-        return mapper.toRepairServiceResponseList(services);
+    public PageResponse<RepairServiceResponse> getAllRepairServices(Pageable pageable) {
+        Page<RepairService> services = repairServiceRepository.findAllByIsDeletedFalseOrderByName(pageable);
+        return PageResponse.from(services, mapper::toRepairServiceResponse);
     }
 
     @Override

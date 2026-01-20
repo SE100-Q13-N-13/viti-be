@@ -2,6 +2,7 @@ package com.example.viti_be.service.impl;
 
 import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.mapper.WarrantyMapper;
@@ -14,6 +15,8 @@ import com.example.viti_be.service.SystemConfigService;
 import com.example.viti_be.service.WarrantyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -256,9 +259,9 @@ public class WarrantyServiceImpl implements WarrantyService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<WarrantyTicketSummaryResponse> getAllTickets() {
-        List<WarrantyTicket> tickets = ticketRepository.findAllByIsDeletedFalseOrderByCreatedAtDesc();
-        return mapper.toTicketSummaryResponseList(tickets);
+    public PageResponse<WarrantyTicketSummaryResponse> getAllTickets(Pageable pageable) {
+        Page<WarrantyTicket> tickets = ticketRepository.findAllByIsDeletedFalseOrderByCreatedAtDesc(pageable);
+        return PageResponse.from(tickets, mapper::toTicketSummaryResponse);
     }
 
     @Override
@@ -793,46 +796,61 @@ public class WarrantyServiceImpl implements WarrantyService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<WarrantyTicketSummaryResponse> getOverdueTickets() {
-        List<WarrantyTicket> overdueTickets = ticketRepository.findOverdueTickets(LocalDateTime.now());
-        return mapper.toTicketSummaryResponseList(overdueTickets);
+    public PageResponse<WarrantyTicketSummaryResponse> getOverdueTickets(Pageable pageable) {
+        Page<WarrantyTicket> overdueTickets = ticketRepository.findOverdueTickets(LocalDateTime.now(), pageable);
+        return PageResponse.from(overdueTickets, mapper::toTicketSummaryResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<TicketStatusHistoryResponse> getTicketStatusHistory(UUID ticketId) {
+    public PageResponse<TicketStatusHistoryResponse> getTicketStatusHistory(UUID ticketId, Pageable pageable) {
         // 1. Kiểm tra ticket tồn tại
-        WarrantyTicket ticket = getTicketEntity(ticketId);
+        getTicketEntity(ticketId);
 
-        // 2. Lấy danh sách audit logs cho ticket này
-        List<AuditLog> logs = auditLogRepository.findAllByResourceId(ticketId.toString());
+        // 2. Query DB lấy Page (Đã lọc sẵn "status" ở DB)
+        Page<AuditLog> logPage = auditLogRepository.findAllByResourceIdAndResourceType(
+                ticketId.toString(),
+                "status",
+                pageable
+        );
 
-        // 3. Lọc logs liên quan đến status và thu thập danh sách Actor ID để tránh truy vấn nhiều lần
-        List<AuditLog> statusLogs = logs.stream()
-                .filter(log -> "status".equals(log.getResourceType()))
-                .toList();
+        // 3. Lấy list log của trang hiện tại để xử lý tiếp
+        List<AuditLog> logs = logPage.getContent();
 
-        Set<UUID> actorIds = statusLogs.stream()
+        // 4. Thu thập danh sách Actor ID (Chỉ lấy của những log trong trang này)
+        Set<UUID> actorIds = logs.stream()
                 .map(AuditLog::getActorId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        // 4. Lấy Map User ID -> Full Name
+        // 5. Lấy Map User ID -> Full Name
         Map<UUID, String> actorNames = userRepository.findAllById(actorIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getFullName));
 
-        // 5. Map sang Response DTO
-        return statusLogs.stream()
+        // 6. Map sang Response DTO List
+        List<TicketStatusHistoryResponse> responseContent = logs.stream()
                 .map(log -> TicketStatusHistoryResponse.builder()
                         .id(log.getId())
                         .oldStatus(parseStatus(log.getOldValue()))
                         .newStatus(parseStatus(log.getNewValue()))
-                        .reason(log.getStatus())
+                        .reason(log.getStatus()) // Lưu ý: check lại xem field này map đúng ý nghĩa business chưa
                         .actorName(log.getActorId() != null ? actorNames.getOrDefault(log.getActorId(), "Unknown User") : "System")
                         .changedAt(log.getCreatedAt())
                         .notes(null)
                         .build())
                 .collect(Collectors.toList());
+
+        // 7. Đóng gói vào PageResponse
+        return PageResponse.<TicketStatusHistoryResponse>builder()
+                .content(responseContent)
+                .totalElements(logPage.getTotalElements())
+                .totalPages(logPage.getTotalPages())
+                .currentPage(logPage.getNumber())
+                .pageSize(logPage.getSize())
+                .last(logPage.isLast())
+                .first(logPage.isFirst())
+                .numberOfElements(logPage.getNumberOfElements())
+                .build();
     }
 
     // ========================================
