@@ -3,6 +3,8 @@ package com.example.viti_be.repository;
 import com.example.viti_be.model.Customer;
 import com.example.viti_be.model.CustomerTier;
 import com.example.viti_be.model.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +22,8 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     Optional<Customer> findByUser(User user);
     boolean existsByPhone(String phone);
     List<Customer> findByIsDeletedFalse();
+
+    Page<Customer> findByIsDeletedFalse(Pageable pageable);
 
     Optional<Customer> findByIdAndIsDeletedFalse(UUID id);
     Optional<Customer> findByUserIdAndIsDeletedFalse(UUID userId);

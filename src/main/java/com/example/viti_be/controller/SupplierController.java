@@ -2,9 +2,12 @@ package com.example.viti_be.controller;
 
 import com.example.viti_be.dto.request.SupplierRequest;
 import com.example.viti_be.dto.response.ApiResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Supplier;
 import com.example.viti_be.service.SupplierService;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -34,8 +37,10 @@ public class SupplierController {
 
     // 3. READ ALL (Lấy tất cả Suppliers)
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Supplier>>> getAllSuppliers() {
-        List<Supplier> suppliers = supplierService.getAllSuppliers();
+    public ResponseEntity<ApiResponse<PageResponse<Supplier>>> getAllSuppliers(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<Supplier> suppliers = supplierService.getAllSuppliers(pageable);
         return ResponseEntity.ok(ApiResponse.success(suppliers, "Suppliers fetched successfully"));
     }
 

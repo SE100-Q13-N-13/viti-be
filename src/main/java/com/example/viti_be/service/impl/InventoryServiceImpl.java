@@ -2,6 +2,7 @@ package com.example.viti_be.service.impl;
 
 import com.example.viti_be.dto.response.InventoryResponse;
 import com.example.viti_be.dto.response.ProductSerialResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.exception.BadRequestException;
 import com.example.viti_be.exception.ResourceNotFoundException;
 import com.example.viti_be.model.*;
@@ -11,7 +12,9 @@ import com.example.viti_be.repository.*;
 import com.example.viti_be.service.InventoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -142,10 +145,9 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public List<InventoryResponse> getAllInventory() {
-        return inventoryRepository.findAllByIsDeletedFalse().stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public PageResponse<InventoryResponse> getAllInventory(Pageable pageable) {
+        Page<Inventory> inventoryPage = inventoryRepository.findAllByIsDeletedFalse(pageable);
+        return PageResponse.from(inventoryPage, this::mapToResponse);
     }
 
     @Override

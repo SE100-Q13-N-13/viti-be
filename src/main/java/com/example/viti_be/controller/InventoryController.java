@@ -4,6 +4,7 @@ import com.example.viti_be.dto.request.UpdateSerialStatusRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.InventoryResponse;
 import com.example.viti_be.dto.response.ProductSerialResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.ProductSerial;
 import com.example.viti_be.model.model_enum.ProductSerialStatus;
 import com.example.viti_be.security.services.UserDetailsImpl;
@@ -11,7 +12,9 @@ import com.example.viti_be.service.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,8 +38,10 @@ public class InventoryController {
     @Operation(summary = "Get all inventory items")
     @PreAuthorize("hasRole('ADMIN') or hasRole('EMPLOYEE')")
     @GetMapping
-    public ResponseEntity<ApiResponse<List<InventoryResponse>>> getAllInventory() {
-        List<InventoryResponse> response = inventoryService.getAllInventory();
+    public ResponseEntity<ApiResponse<PageResponse<InventoryResponse>>> getAllInventory(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<InventoryResponse> response = inventoryService.getAllInventory(pageable);
         return ResponseEntity.ok(ApiResponse.success(response, "Inventory fetched successfully"));
     }
 

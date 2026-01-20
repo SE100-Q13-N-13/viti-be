@@ -4,9 +4,12 @@ import com.example.viti_be.dto.request.AddressRequest;
 import com.example.viti_be.dto.request.CustomerRequest;
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.CustomerResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.service.CustomerService;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,8 +51,10 @@ public class CustomerController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<ApiResponse<List<CustomerResponse>>> getAllCustomers() {
-        List<CustomerResponse> customers = customerService.getAllCustomers();
+    public ResponseEntity<ApiResponse<PageResponse<CustomerResponse>>> getAllCustomers(
+            @ParameterObject Pageable pageable
+            ) {
+        PageResponse<CustomerResponse> customers = customerService.getAllCustomers(pageable);
         return ResponseEntity.ok(ApiResponse.success(customers, "Customers retrieved successfully"));
     }
 

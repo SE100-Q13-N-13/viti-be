@@ -1,6 +1,8 @@
 package com.example.viti_be.repository;
 
 import com.example.viti_be.model.Product;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -9,6 +11,6 @@ import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     boolean existsByName(String name);
-    List<Product> findAllByIsDeletedFalse();
+    Page<Product> findAllByIsDeletedFalse(Pageable pageable);
     Optional<Product> findByIdAndIsDeletedFalse(UUID id);
 }

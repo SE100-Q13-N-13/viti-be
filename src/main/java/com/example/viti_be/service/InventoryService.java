@@ -2,9 +2,11 @@ package com.example.viti_be.service;
 
 import com.example.viti_be.dto.response.InventoryResponse;
 import com.example.viti_be.dto.response.ProductSerialResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Inventory;
 import com.example.viti_be.model.ProductSerial;
 import com.example.viti_be.model.model_enum.ProductSerialStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -53,7 +55,7 @@ public interface InventoryService {
      * Get all inventory items
      * @return List of InventoryResponse
      */
-    List<InventoryResponse> getAllInventory();
+    PageResponse<InventoryResponse> getAllInventory(Pageable pageable);
     
     /**
      * Get low stock items (below threshold)

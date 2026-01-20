@@ -2,6 +2,8 @@ package com.example.viti_be.repository;
 
 import com.example.viti_be.model.PurchaseOrder;
 import com.example.viti_be.model.model_enum.PurchaseOrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,7 +18,7 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, UU
     
     Optional<PurchaseOrder> findByIdAndIsDeletedFalse(UUID id);
     
-    List<PurchaseOrder> findAllByIsDeletedFalse();
+    Page<PurchaseOrder> findAllByIsDeletedFalse(Pageable pageable);
     
     List<PurchaseOrder> findAllByStatusAndIsDeletedFalse(PurchaseOrderStatus status);
     

@@ -2,6 +2,9 @@ package com.example.viti_be.service;
 
 import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -48,7 +51,7 @@ public interface WarrantyService {
      * Lấy danh sách tất cả phiếu
      * @return Danh sách phiếu (summary)
      */
-    List<WarrantyTicketSummaryResponse> getAllTickets();
+    PageResponse<WarrantyTicketSummaryResponse> getAllTickets(Pageable pageable);
 
     /**
      * Tìm kiếm phiếu theo serial number
@@ -190,12 +193,12 @@ public interface WarrantyService {
      * Lấy danh sách phiếu quá hạn
      * @return Danh sách phiếu
      */
-    List<WarrantyTicketSummaryResponse> getOverdueTickets();
+    PageResponse<WarrantyTicketSummaryResponse> getOverdueTickets(Pageable pageable);
 
     /**
      * Lấy status history của phiếu
      * @param ticketId ID phiếu
      * @return Lịch sử đổi status
      */
-    List<TicketStatusHistoryResponse> getTicketStatusHistory(UUID ticketId);
+    PageResponse<TicketStatusHistoryResponse> getTicketStatusHistory(UUID ticketId, Pageable pageable);
 }

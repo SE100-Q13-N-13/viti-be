@@ -2,6 +2,7 @@ package com.example.viti_be.controller;
 
 import com.example.viti_be.dto.request.*;
 import com.example.viti_be.dto.response.*;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.WarrantyService;
 import com.example.viti_be.util.SecurityUtils;
@@ -9,9 +10,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.parameters.P;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
@@ -81,8 +85,10 @@ public class WarrantyController {
     @GetMapping("/admin")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Lấy danh sách tất cả phiếu")
-    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> getAllTickets() {
-        List<WarrantyTicketSummaryResponse> tickets = warrantyService.getAllTickets();
+    public ResponseEntity<ApiResponse<PageResponse<WarrantyTicketSummaryResponse>>> getAllTickets(
+            @ParameterObject Pageable pageable
+            ) {
+        PageResponse<WarrantyTicketSummaryResponse> tickets = warrantyService.getAllTickets(pageable);
         return ResponseEntity.ok(ApiResponse.success(tickets, "Lấy danh sách phiếu thành công"));
     }
 
@@ -242,17 +248,21 @@ public class WarrantyController {
     @GetMapping("/admin/overdue")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Lấy danh sách phiếu quá hạn")
-    public ResponseEntity<ApiResponse<List<WarrantyTicketSummaryResponse>>> getOverdueTickets() {
-        List<WarrantyTicketSummaryResponse> tickets = warrantyService.getOverdueTickets();
+    public ResponseEntity<ApiResponse<PageResponse<WarrantyTicketSummaryResponse>>> getOverdueTickets(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<WarrantyTicketSummaryResponse> tickets = warrantyService.getOverdueTickets(pageable);
         return ResponseEntity.ok(ApiResponse.success(tickets, "Lấy danh sách phiếu quá hạn thành công"));
     }
 
     @GetMapping("/admin/{id}/history")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Lấy lịch sử đổi trạng thái")
-    public ResponseEntity<ApiResponse<List<TicketStatusHistoryResponse>>> getStatusHistory(
-            @PathVariable UUID id) {
-        List<TicketStatusHistoryResponse> history = warrantyService.getTicketStatusHistory(id);
+    public ResponseEntity<ApiResponse<PageResponse<TicketStatusHistoryResponse>>> getStatusHistory(
+            @PathVariable UUID id,
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<TicketStatusHistoryResponse> history = warrantyService.getTicketStatusHistory(id, pageable);
         return ResponseEntity.ok(ApiResponse.success(history, "Lấy lịch sử thành công"));
     }
 

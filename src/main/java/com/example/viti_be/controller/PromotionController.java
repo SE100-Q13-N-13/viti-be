@@ -1,10 +1,13 @@
 package com.example.viti_be.controller;
 
+import com.cloudinary.Api;
 import com.example.viti_be.dto.request.ApplyPromotionCodeRequest;
 import com.example.viti_be.dto.request.PromotionRequest;
+import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.CartDiscountCalculationResponse;
 import com.example.viti_be.dto.response.PromotionResponse;
 import com.example.viti_be.dto.response.PromotionUsageReportResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.security.services.UserDetailsImpl;
 import com.example.viti_be.service.PromotionService;
 import com.example.viti_be.util.SecurityUtils;
@@ -12,6 +15,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -111,15 +117,12 @@ public class PromotionController {
     @GetMapping("/admin/promotions")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get all promotions (Admin)")
-    public ResponseEntity<Map<String, Object>> getAllPromotions() {
-        List<PromotionResponse> promotions = promotionService.getAllPromotions();
+    public ResponseEntity<ApiResponse<PageResponse<PromotionResponse>>> getAllPromotions(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<PromotionResponse> promotions = promotionService.getAllPromotions(pageable);
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("data", promotions);
-        result.put("total", promotions.size());
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(promotions, "Get promotions successfully"));
     }
 
     @GetMapping("/admin/promotions/{id}")
@@ -169,15 +172,11 @@ public class PromotionController {
 
     @GetMapping("/promotions")
     @Operation(summary = "Get all active promotions (Public)")
-    public ResponseEntity<Map<String, Object>> getActivePromotions() {
-        List<PromotionResponse> promotions = promotionService.getActivePromotions();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("data", promotions);
-        result.put("total", promotions.size());
-
-        return ResponseEntity.ok(result);
+    public ResponseEntity<ApiResponse<PageResponse<PromotionResponse>>> getActivePromotions(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<PromotionResponse> promotions = promotionService.getActivePromotions(pageable);
+        return ResponseEntity.ok(ApiResponse.success(promotions, "Get public promotions successfully"));
     }
 
     @GetMapping("/promotions/{id}")
@@ -245,15 +244,11 @@ public class PromotionController {
     @GetMapping("/employee/promotions")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Get active promotions for employees")
-    public ResponseEntity<Map<String, Object>> getPromotionsForEmployee() {
-        List<PromotionResponse> promotions = promotionService.getActivePromotions();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("data", promotions);
-        result.put("total", promotions.size());
-
-        return ResponseEntity.ok(result);
+    public ResponseEntity<ApiResponse<PageResponse<PromotionResponse>>> getPromotionsForEmployee(
+            @ParameterObject Pageable pageable
+    ) {
+        PageResponse<PromotionResponse> promotions = promotionService.getActivePromotions(pageable);
+        return ResponseEntity.ok(ApiResponse.success(promotions, "Get employee promotions successfully"));
     }
 
     @PostMapping("/employee/promotions/validate")

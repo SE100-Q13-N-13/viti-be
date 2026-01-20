@@ -1,14 +1,18 @@
 package com.example.viti_be.service.impl;
 
 import com.example.viti_be.dto.request.SupplierRequest;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Supplier;
 import com.example.viti_be.repository.SupplierRepository;
 import com.example.viti_be.service.SupplierService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Service
 public class SupplierServiceImpl implements SupplierService {
@@ -31,8 +35,9 @@ public class SupplierServiceImpl implements SupplierService {
         return repo.findById(id).orElseThrow(() -> new RuntimeException("Can not find Supplier by ID: " + id));
     }
     @Override
-    public List<Supplier> getAllSuppliers(){
-        return repo.findAll();
+    public PageResponse<Supplier> getAllSuppliers(Pageable pageable){
+        Page<Supplier> page = repo.findAll(pageable);
+        return PageResponse.from(page, Function.identity());
     }
 
     @Override

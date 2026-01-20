@@ -3,6 +3,9 @@ package com.example.viti_be.service;
 import com.example.viti_be.dto.request.PurchaseOrderRequest;
 import com.example.viti_be.dto.request.ReceiveGoodsRequest;
 import com.example.viti_be.dto.response.PurchaseOrderResponse;
+import com.example.viti_be.dto.response.pagnitation.PageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +41,7 @@ public interface PurchaseOrderService {
      * Get all Purchase Orders
      * @return List of PurchaseOrderResponse
      */
-    List<PurchaseOrderResponse> getAllPurchaseOrders();
+    PageResponse<PurchaseOrderResponse> getAllPurchaseOrders(Pageable pageable);
     
     /**
      * Get Purchase Orders by Supplier ID
