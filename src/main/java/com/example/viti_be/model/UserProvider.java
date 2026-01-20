@@ -31,6 +31,7 @@ public class UserProvider {
     private String providerId; // Google sub, NULL cho EMAIL
 
     @Column(name = "is_primary")
+    @Builder.Default
     private Boolean isPrimary = false;
 
     @Column(name = "linked_at")

@@ -3,6 +3,7 @@ package com.example.viti_be.service.impl;
 import com.example.viti_be.dto.response.AuditLogResponse;
 import com.example.viti_be.dto.response.UserResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
+import com.example.viti_be.mapper.UserMapper;
 import com.example.viti_be.model.AuditLog;
 import com.example.viti_be.model.User;
 import com.example.viti_be.model.model_enum.AuditAction;
@@ -26,6 +27,9 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private UserMapper userMapper;
 
     @Override
     public AuditLog log(UUID actorId, AuditModule module, AuditAction action, String resourceId, String resourceType,
@@ -76,7 +80,7 @@ public class AuditLogServiceImpl implements AuditLogService {
         UserResponse actorResponse = null;
         if (auditLog.getActorId() != null) {
             actorResponse = userRepository.findById(auditLog.getActorId())
-                    .map(UserResponse::fromEntity)
+                    .map(userMapper::toUserResponse)
                     .orElse(null);
         }
 

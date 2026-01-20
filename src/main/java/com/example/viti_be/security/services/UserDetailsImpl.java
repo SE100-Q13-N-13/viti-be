@@ -56,11 +56,13 @@ public class UserDetailsImpl implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return !"SUSPENDED".equals(status) && !"TERMINATED".equals(status);
+        return !UserStatus.TERMINATED.equals(status) && !UserStatus.SUSPENDED.equals(status);
     }
 
     @Override
     public boolean isCredentialsNonExpired() { return true; }
     @Override
-    public boolean isEnabled() { return isActive; }
+    public boolean isEnabled() {
+        return isActive != null && isActive;  // ← Thêm null check
+    }
 }
