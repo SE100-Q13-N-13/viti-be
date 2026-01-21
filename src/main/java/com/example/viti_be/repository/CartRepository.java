@@ -38,4 +38,22 @@ public interface CartRepository extends JpaRepository<Cart, UUID> {
      * Kiểm tra customer đã có giỏ hàng chưa
      */
     boolean existsByCustomerIdAndIsDeletedFalse(UUID customerId);
+
+    // ==================== CART TOKEN METHODS (for guest users) ====================
+
+    /**
+     * Tìm giỏ hàng theo cart token và chưa bị xóa
+     */
+    Optional<Cart> findByCartTokenAndIsDeletedFalse(String cartToken);
+
+    /**
+     * Tìm giỏ hàng theo cart token, fetch eager các items
+     */
+    @Query("SELECT c FROM Cart c LEFT JOIN FETCH c.items i LEFT JOIN FETCH i.productVariant pv LEFT JOIN FETCH pv.product WHERE c.cartToken = :cartToken AND c.isDeleted = false")
+    Optional<Cart> findByCartTokenWithItems(@Param("cartToken") String cartToken);
+
+    /**
+     * Kiểm tra cart token đã tồn tại chưa
+     */
+    boolean existsByCartTokenAndIsDeletedFalse(String cartToken);
 }

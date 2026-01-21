@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "carts")
+@Table(name = "carts", indexes = {
+    @Index(name = "idx_cart_token", columnList = "cart_token", unique = true)
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,8 +18,14 @@ import java.util.List;
 public class Cart extends BaseEntity {
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", nullable = false, unique = true)
+    @JoinColumn(name = "customer_id", unique = true)
     private Customer customer;
+
+    /**
+     * Unique cart token for guest users (stored in persistent cookie)
+     */
+    @Column(name = "cart_token", unique = true, length = 36)
+    private String cartToken;
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

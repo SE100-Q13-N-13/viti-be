@@ -82,6 +82,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/api/test/**").permitAll()
+                    .requestMatchers("/api/cart/**").permitAll() // Allow cart access for guests
                     .requestMatchers(HttpMethod.GET, "/api/address/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "api/promotions/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/orders").permitAll()
