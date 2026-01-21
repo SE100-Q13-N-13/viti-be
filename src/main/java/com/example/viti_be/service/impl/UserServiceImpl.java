@@ -153,6 +153,8 @@ public class UserServiceImpl implements UserService {
         address.setType(request.getType());
         address.setIsPrimary(request.getIsPrimary());
         address.setPostalCode(request.getPostalCode());
+        address.setContactName(request.getContactName());
+        address.setPhoneNumber(request.getPhoneNumber());
 
         Address savedAddress = addressRepository.save(address);
 
@@ -271,6 +273,8 @@ public class UserServiceImpl implements UserService {
                 .type(address.getType())
                 .isPrimary(address.getIsPrimary())
                 .postalCode(address.getPostalCode())
+                .contactName(address.getContactName())
+                .phoneNumber(address.getPhoneNumber())
                 .build();
     }
 
