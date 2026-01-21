@@ -44,10 +44,14 @@ public class CartMapper {
                 .map(CartItemResponse::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Handle both guest carts (customer = null) and customer carts
+        UUID customerId = cart.getCustomer() != null ? cart.getCustomer().getId() : null;
+        String customerName = cart.getCustomer() != null ? cart.getCustomer().getFullName() : null;
+
         return CartResponse.builder()
                 .id(cart.getId())
-                .customerId(cart.getCustomer().getId())
-                .customerName(cart.getCustomer().getFullName())
+                .customerId(customerId)
+                .customerName(customerName)
                 .items(itemResponses)
                 .totalItems(totalItems)
                 .totalAmount(totalAmount)
