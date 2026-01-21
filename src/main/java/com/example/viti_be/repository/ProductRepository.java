@@ -39,12 +39,20 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
       AND (:#{#maxPrice == null} = true
            OR v.sellingPrice <= :maxPrice)
+           
+      AND (:#{#variantName == null || #variantName.isBlank()} = true
+                             OR LOWER(v.variantName) LIKE LOWER(CONCAT('%', :variantName, '%')))
+            
+                        AND (:#{#variantSpec == null || #variantSpec.isBlank()} = true
+                             OR LOWER(v.variantSpecs) LIKE LOWER(CONCAT('%', :variantSpec, '%')))
 """)
     Page<Product> findAllWithFilters(
             @Param("categoryId") UUID categoryId,
             @Param("supplierId") UUID supplierId,
             @Param("minPrice") BigDecimal minPrice,
             @Param("maxPrice") BigDecimal maxPrice,
+            @Param("variantName") String variantName,
+            @Param("variantSpec") String variantSpec,
             Pageable pageable
     );
 }

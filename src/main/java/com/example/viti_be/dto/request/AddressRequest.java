@@ -1,5 +1,6 @@
 package com.example.viti_be.dto.request;
 
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -20,4 +21,8 @@ public class AddressRequest {
     private Boolean isPrimary = false;
 
     private String postalCode;
+
+    private String contactName;
+
+    private String phoneNumber;
 }

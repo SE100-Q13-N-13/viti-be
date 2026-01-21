@@ -104,9 +104,12 @@ public class ProductServiceImpl implements ProductService {
             UUID categoryId,
             UUID supplierId,
             BigDecimal minPrice,
-            BigDecimal maxPrice,Pageable pageable
+            BigDecimal maxPrice,
+            String variantName,
+            String variantSpec,
+            Pageable pageable
     ) {
-        Page<Product> productPage = productRepository.findAllWithFilters(categoryId, supplierId, minPrice, maxPrice, pageable);
+        Page<Product> productPage = productRepository.findAllWithFilters(categoryId, supplierId, minPrice, maxPrice,  variantName, variantSpec, pageable);
         return PageResponse.from(productPage, productMapper::toProductResponse);
     }
 

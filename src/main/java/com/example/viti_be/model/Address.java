@@ -34,4 +34,10 @@ public class Address extends BaseEntity {
 
     @Column(name = "postal_code", length = 10)
     private String postalCode;
+
+    @Column(name = "contact_name")
+    private String contactName;
+
+    @Column(name = "phone_number")
+    private String phoneNumber;
 }
