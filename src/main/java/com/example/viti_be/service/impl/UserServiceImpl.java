@@ -14,9 +14,7 @@ import com.example.viti_be.model.model_enum.AuditAction;
 import com.example.viti_be.model.model_enum.AuditModule;
 import com.example.viti_be.model.model_enum.UserStatus;
 import com.example.viti_be.repository.*;
-import com.example.viti_be.service.AuditLogService;
-import com.example.viti_be.service.CloudinaryService;
-import com.example.viti_be.service.UserService;
+import com.example.viti_be.service.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -59,6 +57,9 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private RoleRepository roleRepository;
 
+    @Autowired
+    private LoyaltyPointService loyaltyPointService;
+
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(UUID userId) {
@@ -78,14 +79,15 @@ public class UserServiceImpl implements UserService {
                         .description(customer.getTier().getDescription())
                         .build());
             }
-
             if (customer.getLoyaltyPoint() != null) {
                 var lp = customer.getLoyaltyPoint();
+                Integer pointsToNext = loyaltyPointService.getPointsToNextTier(lp.getTotalPoints());
+
                 response.setLoyaltyPoint(UserResponse.UserLoyaltyInfo.builder()
                         .totalPoints(lp.getTotalPoints())
                         .pointsAvailable(lp.getPointsAvailable())
                         .pointsUsed(lp.getPointsUsed())
-                        .pointsToNextTier(lp.getPointsAvailable())
+                        .pointsToNextTier(pointsToNext)
                         .build());
             }
         }
