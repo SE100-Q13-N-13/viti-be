@@ -13,6 +13,7 @@ import com.example.viti_be.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Encoding;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
@@ -29,7 +30,8 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/products")
-@RequiredArgsConstructor // Dùng Lombok để inject Service & Mapper
+@Tag(name = "Product Management", description = "APIs for managing products and product variants")
+@RequiredArgsConstructor
 public class ProductController {
 
     private final ProductService productService;
@@ -59,6 +61,21 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(
                 productMapper.toProductResponse(product),
                 "Fetch product success"
+        ));
+    }
+
+    /**
+     * GET /api/products/{productId}/variants - Lấy variants của 1 product (Public)
+     */
+    @GetMapping("/{productId}/variants")
+    @Operation(summary = "Lấy tất cả variants của 1 sản phẩm (Public)",
+            description = "Dùng để hiển thị các biến thể (màu sắc, dung lượng...) trên trang chi tiết")
+    public ResponseEntity<ApiResponse<List<ProductVariantResponse>>> getProductVariants(
+            @PathVariable UUID productId) {
+        List<ProductVariant> variants = productService.getVariantsByProductId(productId);
+        return ResponseEntity.ok(ApiResponse.success(
+                productMapper.toVariantResponseList(variants),
+                "Fetch variants success"
         ));
     }
 

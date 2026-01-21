@@ -82,12 +82,19 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/api/test/**").permitAll()
-                    .requestMatchers("/api/cart/**").permitAll() // Allow cart access for guests
+                    .requestMatchers("/api/cart/**").permitAll()
+
+                    .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/variants/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/address/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "api/promotions/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/promotions/**").permitAll()
+
                     .requestMatchers(HttpMethod.POST, "/api/orders").permitAll()
+
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                     .anyRequest().authenticated()
             )
                 .headers(headers -> headers

@@ -3,6 +3,7 @@ package com.example.viti_be.service;
 import com.example.viti_be.dto.request.ProductRequest;
 import com.example.viti_be.dto.request.VariantRequest;
 import com.example.viti_be.dto.response.ProductResponse;
+import com.example.viti_be.dto.response.ProductVariantResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Product;
 import com.example.viti_be.model.ProductVariant;
@@ -19,6 +20,15 @@ public interface ProductService {
     ProductVariant createVariant(VariantRequest request);
     PageResponse<ProductResponse> getAllProducts(UUID categoryId, UUID supplierId, BigDecimal minPrice, BigDecimal maxPrice, String variantName, String variantSpec, Pageable pageable);
     Product getProductById(UUID id);
+
+    List<ProductVariant> getVariantsByProductId(UUID productId);
+
+    PageResponse<ProductVariantResponse> getAllVariants(Pageable pageable);
+
+    PageResponse<ProductVariantResponse> getVariantsByCategory(UUID categoryId, Pageable pageable);
+
+    PageResponse<ProductVariantResponse> getVariantsByProduct(UUID productId, Pageable pageable);
+
     Product updateProduct(UUID id, ProductRequest request, MultipartFile image);
     void deleteProduct(UUID id);
     ProductVariant updateVariant(UUID id, VariantRequest request);

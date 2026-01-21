@@ -3,6 +3,7 @@ package com.example.viti_be.service.impl;
 import com.example.viti_be.dto.request.ProductRequest;
 import com.example.viti_be.dto.request.VariantRequest;
 import com.example.viti_be.dto.response.ProductResponse;
+import com.example.viti_be.dto.response.ProductVariantResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.mapper.ProductMapper;
 import com.example.viti_be.model.*;
@@ -117,6 +118,38 @@ public class ProductServiceImpl implements ProductService {
     public Product getProductById(UUID id) {
         return productRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Product not found or has been deleted"));
+    }
+
+    @Override
+    public List<ProductVariant> getVariantsByProductId(UUID productId) {
+        // Verify product exists
+        Product product = getProductById(productId);
+        return variantRepository.findByProductIdAndIsDeletedFalse(productId);
+    }
+
+    @Override
+    public PageResponse<ProductVariantResponse> getAllVariants(Pageable pageable) {
+        Page<ProductVariant> variantPage = variantRepository.findAllByIsDeletedFalse(pageable);
+        return PageResponse.from(variantPage, productMapper::toVariantResponse);
+    }
+
+    @Override
+    public PageResponse<ProductVariantResponse> getVariantsByCategory(UUID categoryId, Pageable pageable) {
+        // Verify category exists
+        categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+
+        Page<ProductVariant> variantPage = variantRepository.findByCategoryId(categoryId, pageable);
+        return PageResponse.from(variantPage, productMapper::toVariantResponse);
+    }
+
+    @Override
+    public PageResponse<ProductVariantResponse> getVariantsByProduct(UUID productId, Pageable pageable) {
+        // Verify product exists
+        Product product = getProductById(productId);
+
+        Page<ProductVariant> variantPage = variantRepository.findByProductIdAndIsDeletedFalse(productId, pageable);
+        return PageResponse.from(variantPage, productMapper::toVariantResponse);
     }
 
     @Override
