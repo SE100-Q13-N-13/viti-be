@@ -32,7 +32,7 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public List<CommuneResponse> getCommunesByProvince(String provinceCode) {
-        return communeRepository.findByProvinceCodeOrderByNameAsc(provinceCode).stream()
+        return communeRepository.findByProvince_CodeOrderByNameAsc(provinceCode).stream()
                 .map(commune -> CommuneResponse.builder()
                         .code(commune.getCode())
                         .name(commune.getName())

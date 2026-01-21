@@ -33,9 +33,8 @@ public class DataLoader implements CommandLineRunner {
             loadProvinces();
         }
         
-        if (communeRepository.count() == 0) {
-            loadCommunes();
-        }
+        // Always try to load communes to fill missing data
+        //loadCommunes();
     }
 
     private void loadProvinces() throws IOException {
@@ -70,19 +69,31 @@ public class DataLoader implements CommandLineRunner {
         Map<String, Province> provinceCache = new HashMap<>();
         provinceRepository.findAll().forEach(p -> provinceCache.put(p.getCode(), p));
 
+        int loadedCount = 0;
+        int skippedCount = 0;
+        
         for (Map<String, String> data : communesData) {
+            String communeCode = data.get("code");
+            
+            // Skip if commune already exists
+            if (communeRepository.existsById(communeCode)) {
+                skippedCount++;
+                continue;
+            }
+            
             String provinceCode = data.get("provinceCode");
             Province province = provinceCache.get(provinceCode);
             
             if (province != null) {
                 Commune commune = new Commune();
-                commune.setCode(data.get("code"));
+                commune.setCode(communeCode);
                 commune.setName(data.get("name"));
                 commune.setProvince(province);
                 communeRepository.save(commune);
+                loadedCount++;
             }
         }
         
-        System.out.println("Loaded " + communesData.size() + " communes");
+        System.out.println("Loaded " + loadedCount + " new communes, skipped " + skippedCount + " existing communes");
     }
 }

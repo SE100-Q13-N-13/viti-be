@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface CommuneRepository extends JpaRepository<Commune, String> {
-    List<Commune> findByProvinceCodeOrderByNameAsc(String provinceCode);
+    List<Commune> findByProvince_CodeOrderByNameAsc(String provinceCode);
 }

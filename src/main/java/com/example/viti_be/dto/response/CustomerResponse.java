@@ -61,7 +61,9 @@ public class CustomerResponse {
         private UUID id;
         private String street;
         private String commune;
+        private String communeCode;
         private String city;
+        private String provinceCode;
         private String detailAddress;
         private String type;
         private Boolean isPrimary;
