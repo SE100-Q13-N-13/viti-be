@@ -38,7 +38,7 @@ public interface ProductService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             String searchKeyword,
-            Map<String, String> variantSpecs,
+            Map<String, List<String>> variantSpecs,
             Pageable pageable
     );
 
