@@ -115,6 +115,12 @@ public class CategoryServiceImpl implements CategoryService {
     public CategorySpec updateSpec(UUID specId, CategorySpecRequest request) {
         CategorySpec spec = categorySpecRepository.findByIdAndIsDeletedFalse(specId)
                 .orElseThrow(() -> new RuntimeException("Spec not found"));
+        
+        // Check if spec belongs to the category being updated
+        if (!spec.getCategory().getId().equals(request.getCategoryId())) {
+            throw new RuntimeException("Cannot update inherited spec. This spec belongs to parent category.");
+        }
+        
         return mapRequestToSpec(request, spec);
     }
 
@@ -128,9 +134,15 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public void deleteSpec(UUID specId) {
+    public void deleteSpec(UUID specId, UUID categoryId) {
         CategorySpec spec = categorySpecRepository.findByIdAndIsDeletedFalse(specId)
                 .orElseThrow(() -> new RuntimeException("Spec not found"));
+        
+        // Check if spec belongs to this category
+        if (!spec.getCategory().getId().equals(categoryId)) {
+            throw new RuntimeException("Cannot delete inherited spec. This spec belongs to parent category.");
+        }
+        
         spec.setIsDeleted(true);
         categorySpecRepository.save(spec);
     }
@@ -138,5 +150,19 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public List<CategorySpec> getSpecsByCategory(UUID categoryId) {
         return categorySpecRepository.findByCategoryIdAndIsDeletedFalse(categoryId);
+    }
+    
+    @Override
+    public List<CategorySpec> getAllSpecsWithInheritance(UUID categoryId) {
+        List<CategorySpec> specs = categorySpecRepository.findByCategoryIdAndIsDeletedFalse(categoryId);
+        
+        // Add inherited specs from parent
+        Category category = getCategoryById(categoryId);
+        if (category.getParent() != null) {
+            List<CategorySpec> parentSpecs = getAllSpecsWithInheritance(category.getParent().getId());
+            specs.addAll(parentSpecs);
+        }
+        
+        return specs;
     }
 }
