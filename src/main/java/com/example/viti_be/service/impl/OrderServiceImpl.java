@@ -337,18 +337,20 @@ public class OrderServiceImpl implements OrderService {
                 if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
                     deductLoyaltyPoints(order, actorId);
                 }
-                pointsEarned = loyaltyPointService.earnPointsFromOrder(order, actorId);
                 break;
-
             case COMPLETED:
                 if (oldStatus == OrderStatus.PENDING && order.getOrderType() == OrderType.OFFLINE) {
                     confirmStockOutForOrder(order, actorId);
-
                     // Deduct và Earn points cho OFFLINE
                     if (order.getLoyaltyPointsUsed() != null && order.getLoyaltyPointsUsed() > 0) {
                         deductLoyaltyPoints(order, actorId);
                     }
+                }
+
+                try {
                     pointsEarned = loyaltyPointService.earnPointsFromOrder(order, actorId);
+                } catch (Exception e) {
+                    log.error("Failed to earn loyalty points for order {}", orderId, e);
                 }
 
                 // Set warranty expiration date

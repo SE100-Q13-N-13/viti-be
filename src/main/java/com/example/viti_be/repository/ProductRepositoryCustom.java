@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -20,7 +21,7 @@ public interface ProductRepositoryCustom {
      * @param supplierId Filter by supplier
      * @param minPrice Minimum price
      * @param maxPrice Maximum price
-     * @param variantName Search in variant name
+     * @param searchKeyword Search in variant name
      * @param specFilters Dynamic spec filters (color=Đen, ram=16GB, etc.)
      * @param pageable Pagination
      * @return Page of products
@@ -30,8 +31,8 @@ public interface ProductRepositoryCustom {
             UUID supplierId,
             BigDecimal minPrice,
             BigDecimal maxPrice,
-            String variantName,
-            Map<String, String> specFilters,
+            String searchKeyword,
+            Map<String, List<String>> specFilters,
             Pageable pageable
     );
 }

@@ -31,27 +31,26 @@ public class ProductRepositoryCustomImpl implements ProductRepositoryCustom {
             UUID supplierId,
             BigDecimal minPrice,
             BigDecimal maxPrice,
-            String variantName,
-            Map<String, String> specFilters,
+            String searchKeyword,
+            Map<String, List<String>> specFilters,
             Pageable pageable) {
 
-        // Build WHERE conditions
         List<String> conditions = new ArrayList<>();
         conditions.add("p.is_deleted = false");
         conditions.add("p.status = 'ACTIVE'");
 
-        // Category filter
+        if (searchKeyword != null && !searchKeyword.isBlank()) {
+            conditions.add("LOWER(p.name) LIKE LOWER(:searchKeyword)");
+        }
         if (categoryId != null) {
             conditions.add("p.category_id = :categoryId");
         }
-
-        // Supplier filter
         if (supplierId != null) {
             conditions.add("p.supplier_id = :supplierId");
         }
 
-        // Price filters (need at least 1 variant matching)
         boolean hasVariantFilters = false;
+
         if (minPrice != null) {
             conditions.add("v.selling_price >= :minPrice");
             hasVariantFilters = true;
@@ -61,83 +60,85 @@ public class ProductRepositoryCustomImpl implements ProductRepositoryCustom {
             hasVariantFilters = true;
         }
 
-        // Variant name filter
-        if (variantName != null && !variantName.isBlank()) {
-            conditions.add("LOWER(v.variant_name) LIKE LOWER(:variantName)");
-            hasVariantFilters = true;
-        }
-
-        // Dynamic spec filters
+        // Dynamic spec filters với logic AND giữa specs, OR trong values
         if (specFilters != null && !specFilters.isEmpty()) {
-            for (String specKey : specFilters.keySet()) {
-                conditions.add(String.format(
-                        "(v.variant_specs::jsonb->>'%s' = :%s OR v.variant_specs LIKE :%s_like)",
-                        specKey, specKey, specKey
-                ));
+            int specIndex = 0;
+            for (Map.Entry<String, List<String>> entry : specFilters.entrySet()) {
+                String specKey = entry.getKey();
+                List<String> values = entry.getValue();
+
+                if (values.isEmpty()) continue;
+
+                if (values.size() == 1) {
+                    // Single value: exact match
+                    conditions.add(String.format(
+                            "(v.variant_specs::jsonb->>'%s' = :spec_%d_val_0 OR v.variant_specs LIKE :spec_%d_like_0)",
+                            specKey, specIndex, specIndex
+                    ));
+                } else {
+                    // Multiple values: OR within same spec
+                    List<String> orConditions = new ArrayList<>();
+                    for (int i = 0; i < values.size(); i++) {
+                        orConditions.add(String.format(
+                                "(v.variant_specs::jsonb->>'%s' = :spec_%d_val_%d OR v.variant_specs LIKE :spec_%d_like_%d)",
+                                specKey, specIndex, i, specIndex, i
+                        ));
+                    }
+                    conditions.add("(" + String.join(" OR ", orConditions) + ")");
+                }
+
+                specIndex++;
                 hasVariantFilters = true;
             }
         }
 
-        // Join variant only if needed
         String joinClause = hasVariantFilters
                 ? "LEFT JOIN product_variants v ON v.product_id = p.id AND v.is_deleted = false"
                 : "";
 
-        // Build main query
         String sql = String.format("""
-            SELECT DISTINCT p.*
-            FROM products p
-            %s
-            WHERE %s
-            """,
-                joinClause,
-                String.join(" AND ", conditions)
-        );
+        SELECT DISTINCT p.*
+        FROM products p
+        %s
+        WHERE %s
+        """, joinClause, String.join(" AND ", conditions));
 
-        // Build count query
         String countSql = String.format("""
-            SELECT COUNT(DISTINCT p.id)
-            FROM products p
-            %s
-            WHERE %s
-            """,
-                joinClause,
-                String.join(" AND ", conditions)
-        );
+        SELECT COUNT(DISTINCT p.id)
+        FROM products p
+        %s
+        WHERE %s
+        """, joinClause, String.join(" AND ", conditions));
 
-        // Create queries
+        log.debug("Generated SQL: {}", sql);
+
         Query query = entityManager.createNativeQuery(sql, Product.class);
         Query countQuery = entityManager.createNativeQuery(countSql);
 
-        // Set parameters
-        setParameters(query, categoryId, supplierId, minPrice, maxPrice, variantName, specFilters);
-        setParameters(countQuery, categoryId, supplierId, minPrice, maxPrice, variantName, specFilters);
+        setParameters(query, categoryId, supplierId, minPrice, maxPrice, searchKeyword, specFilters);
+        setParameters(countQuery, categoryId, supplierId, minPrice, maxPrice, searchKeyword, specFilters);
 
-        // Apply pagination
         query.setFirstResult((int) pageable.getOffset());
         query.setMaxResults(pageable.getPageSize());
 
-        // Execute
         @SuppressWarnings("unchecked")
         List<Product> products = query.getResultList();
         long total = ((Number) countQuery.getSingleResult()).longValue();
 
-        log.debug("Dynamic filter query returned {} products out of {} total", products.size(), total);
-
         return new PageImpl<>(products, pageable, total);
     }
 
-    /**
-     * Set parameters for query
-     */
     private void setParameters(
             Query query,
             UUID categoryId,
             UUID supplierId,
             BigDecimal minPrice,
             BigDecimal maxPrice,
-            String variantName,
-            Map<String, String> specFilters) {
+            String searchKeyword,
+            Map<String, List<String>> specFilters) {
+        if (searchKeyword != null && !searchKeyword.isBlank()) {
+            query.setParameter("searchKeyword", "%" + searchKeyword + "%");
+        }
 
         if (categoryId != null) {
             query.setParameter("categoryId", categoryId);
@@ -151,18 +152,23 @@ public class ProductRepositoryCustomImpl implements ProductRepositoryCustom {
         if (maxPrice != null) {
             query.setParameter("maxPrice", maxPrice);
         }
-        if (variantName != null && !variantName.isBlank()) {
-            query.setParameter("variantName", "%" + variantName + "%");
-        }
 
-        // Set spec filter parameters
+        // Set multi-value spec parameters
         if (specFilters != null) {
-            for (Map.Entry<String, String> entry : specFilters.entrySet()) {
+            int specIndex = 0;
+            for (Map.Entry<String, List<String>> entry : specFilters.entrySet()) {
                 String key = entry.getKey();
-                String value = entry.getValue();
+                List<String> values = entry.getValue();
 
-                query.setParameter(key, value);
-                query.setParameter(key + "_like", "%\"" + key + "\":\"" + value + "\"%");
+                for (int i = 0; i < values.size(); i++) {
+                    String value = values.get(i);
+                    query.setParameter(String.format("spec_%d_val_%d", specIndex, i), value);
+                    query.setParameter(
+                            String.format("spec_%d_like_%d", specIndex, i),
+                            "%\"" + key + "\":\"" + value + "\"%"
+                    );
+                }
+                specIndex++;
             }
         }
     }

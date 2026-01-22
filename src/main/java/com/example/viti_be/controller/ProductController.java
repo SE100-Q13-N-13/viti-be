@@ -87,7 +87,7 @@ public class ProductController {
             @ParameterObject Pageable pageable
     ) {
         // Parse dynamic specs từ request params
-        Map<String, String> variantSpecs = parseDynamicSpecs(allParams);
+        Map<String, List<String>> variantSpecs = parseDynamicSpecsMultiValue(allParams);
 
         log.info("📊 Product filter request - category: {}, supplier: {}, price: {}-{}, search: '{}', specs: {}",
                 categoryId, supplierId, minPrice, maxPrice, search, variantSpecs);
@@ -109,19 +109,27 @@ public class ProductController {
      * Parse dynamic specs từ request params
      * Lọc bỏ reserved params (categoryId, page, size...) và giữ lại specs
      */
-    private Map<String, String> parseDynamicSpecs(Map<String, String> allParams) {
-        return allParams.entrySet().stream()
-                .filter(entry -> {
-                    String key = entry.getKey().toLowerCase();
-                    // Bỏ qua reserved params
-                    return !RESERVED_PARAMS.contains(key);
-                })
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (v1, v2) -> v1, // Merge function (không có duplicate)
-                        LinkedHashMap::new // Giữ thứ tự
-                ));
+    private Map<String, List<String>> parseDynamicSpecsMultiValue(Map<String, String> allParams) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+
+        allParams.entrySet().stream()
+                .filter(entry -> !RESERVED_PARAMS.contains(entry.getKey().toLowerCase()))
+                .forEach(entry -> {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+
+                    // Support both formats:
+                    // ?color=Đỏ,Vàng  hoặc  ?color=Đỏ&color=Vàng
+                    List<String> values = Arrays.asList(value.split(","));
+
+                    result.merge(key, values, (oldList, newList) -> {
+                        List<String> merged = new ArrayList<>(oldList);
+                        merged.addAll(newList);
+                        return merged;
+                    });
+                });
+
+        return result;
     }
 
     // Xem chi tiết
