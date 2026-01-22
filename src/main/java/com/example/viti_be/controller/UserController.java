@@ -39,7 +39,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(response, "Get profile successfully"));
     }
 
-    @PatchMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(
             summary = "Cập nhật thông tin cá nhân (Partial Update)",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(

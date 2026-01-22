@@ -6,6 +6,7 @@ import com.example.viti_be.dto.response.*;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.model.Order;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +45,9 @@ public interface PromotionService {
      * Lấy active promotions
      */
     PageResponse<PromotionResponse> getActivePromotions(Pageable pageable);
+
+    @Transactional(readOnly = true)
+    List<PromotionResponse> getApplicablePromotionsForCart(ApplyPromotionCodeRequest request);
 
     /**
      * Toggle promotion status (ACTIVE <-> INACTIVE)

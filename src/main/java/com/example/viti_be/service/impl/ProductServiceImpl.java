@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -106,7 +107,7 @@ public class ProductServiceImpl implements ProductService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             String searchKeyword,
-            Map<String, String> variantSpecs,
+            Map<String, List<String>> variantSpecs,
             Pageable pageable
     ) {
         // Execute query
@@ -159,7 +160,7 @@ public class ProductServiceImpl implements ProductService {
      */
     private boolean matchesFilters(
             ProductVariantResponse variant,
-            Map<String, String> specFilters,
+            Map<String, List<String>> specFilters,
             BigDecimal minPrice,
             BigDecimal maxPrice
     ) {
@@ -179,18 +180,33 @@ public class ProductServiceImpl implements ProductService {
                         new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {}
                 );
 
-                for (Map.Entry<String, String> filter : specFilters.entrySet()) {
-                    String key = filter.getKey().toLowerCase();
-                    String expectedValue = filter.getValue();
+                // Normalize variant specs to lowercase keys
+                Map<String, String> normalizedVariantSpecs = variantSpecs.entrySet().stream()
+                        .collect(Collectors.toMap(
+                                e -> e.getKey().toLowerCase(),
+                                e -> String.valueOf(e.getValue())
+                        ));
 
-                    // Case-insensitive key matching
-                    String actualValue = variantSpecs.entrySet().stream()
-                            .filter(e -> e.getKey().toLowerCase().equals(key))
-                            .map(e -> String.valueOf(e.getValue()))
-                            .findFirst()
-                            .orElse(null);
+                // Check each filter spec
+                for (Map.Entry<String, List<String>> filter : specFilters.entrySet()) {
+                    String filterKey = filter.getKey().toLowerCase();
+                    List<String> expectedValues = filter.getValue();
 
-                    if (!expectedValue.equals(actualValue)) {
+                    if (expectedValues == null || expectedValues.isEmpty()) {
+                        continue;
+                    }
+
+                    String actualValue = normalizedVariantSpecs.get(filterKey);
+
+                    // Check if actual value matches ANY expected value
+                    boolean matchesAnyValue = expectedValues.stream()
+                            .anyMatch(expected -> {
+                                // Case-insensitive comparison for values
+                                return expected != null && actualValue != null
+                                        && expected.equalsIgnoreCase(actualValue);
+                            });
+
+                    if (!matchesAnyValue) {
                         return false;
                     }
                 }
