@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,10 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     Optional<Inventory> findByProductVariantIdAndIsDeletedFalse(UUID productVariantId);
     
     Page<Inventory> findAllByIsDeletedFalse(Pageable pageable);
+    
+    Page<Inventory> findByProductVariantIsNotNullAndIsDeletedFalse(Pageable pageable);
+    
+    Page<Inventory> findByPartComponentIdIsNotNullAndIsDeletedFalse(Pageable pageable);
     
     @Query("SELECT i FROM Inventory i WHERE i.productVariant.id = :productVariantId AND i.isDeleted = false")
     Optional<Inventory> findByProductVariantId(@Param("productVariantId") UUID productVariantId);
@@ -92,14 +97,68 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     );
 
     /**
-     * Count low stock products
+     * Count low stock products (only product variants, not parts)
      */
-    @Query("SELECT COUNT(i) FROM Inventory i WHERE i.quantityAvailable < i.minThreshold")
+    @Query("SELECT COUNT(i) FROM Inventory i WHERE i.productVariant IS NOT NULL AND i.quantityAvailable < i.minThreshold AND i.isDeleted = false")
     Long countLowStockProducts();
+
+    /**
+     * Count low stock components (parts)
+     */
+    @Query("SELECT COUNT(i) FROM Inventory i WHERE i.partComponentId IS NOT NULL AND i.quantityAvailable < i.minThreshold AND i.isDeleted = false")
+    Long countLowStockComponents();
 
     /**
      * Count out of stock products
      */
     @Query("SELECT COUNT(i) FROM Inventory i WHERE i.quantityAvailable = 0")
     Long countOutOfStockProducts();
+
+    /**
+     * Calculate total stock value for products (quantity * selling price)
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(i.quantity_available * pv.selling_price), 0)
+        FROM inventory i
+        INNER JOIN product_variants pv ON i.product_variant_id = pv.id
+        WHERE i.is_deleted = false AND pv.is_deleted = false
+    """, nativeQuery = true)
+    BigDecimal calculateTotalProductStockValue();
+
+    /**
+     * Calculate total stock value for parts/components
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(i.quantity_available * pc.selling_price), 0)
+        FROM inventory i
+        INNER JOIN part_components pc ON i.part_component_id = pc.id
+        WHERE i.is_deleted = false AND pc.is_deleted = false
+    """, nativeQuery = true)
+    BigDecimal calculateTotalComponentStockValue();
+
+    /**
+     * Get low stock products (product variants with quantity below threshold)
+     */
+    @Query("SELECT i FROM Inventory i JOIN FETCH i.productVariant pv JOIN FETCH pv.product p " +
+           "WHERE i.productVariant IS NOT NULL AND i.quantityAvailable < i.minThreshold AND i.isDeleted = false " +
+           "ORDER BY (i.quantityAvailable * 1.0 / NULLIF(i.minThreshold, 0)) ASC")
+    List<Inventory> findLowStockProducts();
+
+    /**
+     * Get low stock components
+     */
+    @Query("SELECT i FROM Inventory i WHERE i.partComponentId IS NOT NULL AND i.quantityAvailable < i.minThreshold AND i.isDeleted = false")
+    List<Inventory> findLowStockComponents();
+
+    /**
+     * Get all product inventories
+     */
+    @Query("SELECT i FROM Inventory i JOIN FETCH i.productVariant pv JOIN FETCH pv.product WHERE i.productVariant IS NOT NULL AND i.isDeleted = false")
+    List<Inventory> findAllProductInventories();
+
+    /**
+     * Get all component inventories
+     */
+    @Query("SELECT i FROM Inventory i WHERE i.partComponentId IS NOT NULL AND i.isDeleted = false")
+    List<Inventory> findAllComponentInventories();
 }

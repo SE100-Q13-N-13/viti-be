@@ -1,5 +1,6 @@
 package com.example.viti_be.service.impl;
 
+import com.example.viti_be.dto.response.InventoryOverviewResponse;
 import com.example.viti_be.dto.response.InventoryResponse;
 import com.example.viti_be.dto.response.ProductSerialResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
@@ -18,9 +19,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.WeekFields;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -41,6 +46,288 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Autowired
     private StockTransactionRepository stockTransactionRepository;
+
+    @Autowired
+    private com.example.viti_be.service.SystemConfigService systemConfigService;
+
+    // ==================== INVENTORY OVERVIEW ====================
+
+    @Override
+    public InventoryOverviewResponse getInventoryOverview(String stockValueTimeRange, String onHandQuantityTimeRange) {
+        log.info("Getting inventory overview with stockValueTimeRange: {}, onHandQuantityTimeRange: {}", 
+                stockValueTimeRange, onHandQuantityTimeRange);
+        
+        // Calculate summary statistics
+        BigDecimal productStockValue = inventoryRepository.calculateTotalProductStockValue();
+        BigDecimal componentStockValue = inventoryRepository.calculateTotalComponentStockValue();
+        BigDecimal totalStockValue = (productStockValue != null ? productStockValue : BigDecimal.ZERO)
+                .add(componentStockValue != null ? componentStockValue : BigDecimal.ZERO);
+        
+        Long lowStockProductCount = inventoryRepository.countLowStockProducts();
+        Long lowStockComponentCount = inventoryRepository.countLowStockComponents();
+        
+        // Get chart data based on time range
+        List<InventoryOverviewResponse.StockValueChartData> stockValueChartData = generateStockValueChartData(stockValueTimeRange);
+        List<InventoryOverviewResponse.OnHandQuantityChartData> onHandQuantityChartData = generateOnHandQuantityChartData(onHandQuantityTimeRange);
+        
+        // Get low stock lists
+        List<InventoryOverviewResponse.LowStockProductItem> lowStockProducts = getLowStockProductsList();
+        List<InventoryOverviewResponse.LowStockComponentItem> lowStockComponents = getLowStockComponentsList();
+        
+        return InventoryOverviewResponse.builder()
+                .totalStockValue(totalStockValue)
+                .lowStockProductCount(lowStockProductCount != null ? lowStockProductCount : 0L)
+                .lowStockComponentCount(lowStockComponentCount != null ? lowStockComponentCount : 0L)
+                .stockValueChartData(stockValueChartData)
+                .onHandQuantityChartData(onHandQuantityChartData)
+                .lowStockProducts(lowStockProducts)
+                .lowStockComponents(lowStockComponents)
+                .build();
+    }
+
+    private List<InventoryOverviewResponse.StockValueChartData> generateStockValueChartData(String timeRange) {
+        List<InventoryOverviewResponse.StockValueChartData> chartData = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Get all inventories for calculation
+        List<Inventory> productInventories = inventoryRepository.findAllProductInventories();
+        List<Inventory> componentInventories = inventoryRepository.findAllComponentInventories();
+        
+        // Calculate current total stock value
+        BigDecimal currentProductValue = calculateProductStockValue(productInventories);
+        BigDecimal currentComponentValue = calculateComponentStockValue(componentInventories);
+        
+        switch (timeRange != null ? timeRange.toUpperCase() : "MONTH") {
+            case "WEEK":
+                // Last 7 days
+                for (int i = 6; i >= 0; i--) {
+                    LocalDateTime date = now.minusDays(i);
+                    String label = date.format(DateTimeFormatter.ofPattern("EEE"));
+                    
+                    // Calculate stock value for that day (simplified - using current value with variations)
+                    BigDecimal dayValue = calculateHistoricalStockValue(date, currentProductValue.add(currentComponentValue));
+                    
+                    chartData.add(InventoryOverviewResponse.StockValueChartData.builder()
+                            .label(label)
+                            .stockValue(dayValue)
+                            .build());
+                }
+                break;
+                
+            case "YEAR":
+                // Last 12 months
+                for (int i = 11; i >= 0; i--) {
+                    LocalDateTime monthDate = now.minusMonths(i);
+                    String label = monthDate.format(DateTimeFormatter.ofPattern("MMM yyyy"));
+                    
+                    BigDecimal monthValue = calculateHistoricalStockValue(monthDate, currentProductValue.add(currentComponentValue));
+                    
+                    chartData.add(InventoryOverviewResponse.StockValueChartData.builder()
+                            .label(label)
+                            .stockValue(monthValue)
+                            .build());
+                }
+                break;
+                
+            case "MONTH":
+            default:
+                // Last 4 weeks
+                for (int i = 3; i >= 0; i--) {
+                    LocalDateTime weekDate = now.minusWeeks(i);
+                    String label = "Week " + (4 - i);
+                    
+                    BigDecimal weekValue = calculateHistoricalStockValue(weekDate, currentProductValue.add(currentComponentValue));
+                    
+                    chartData.add(InventoryOverviewResponse.StockValueChartData.builder()
+                            .label(label)
+                            .stockValue(weekValue)
+                            .build());
+                }
+                break;
+        }
+        
+        return chartData;
+    }
+
+    private List<InventoryOverviewResponse.OnHandQuantityChartData> generateOnHandQuantityChartData(String timeRange) {
+        List<InventoryOverviewResponse.OnHandQuantityChartData> chartData = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Get current quantities
+        List<Inventory> productInventories = inventoryRepository.findAllProductInventories();
+        List<Inventory> componentInventories = inventoryRepository.findAllComponentInventories();
+        
+        long currentProductQty = productInventories.stream()
+                .mapToLong(i -> i.getQuantityAvailable() != null ? i.getQuantityAvailable() : 0)
+                .sum();
+        long currentComponentQty = componentInventories.stream()
+                .mapToLong(i -> i.getQuantityAvailable() != null ? i.getQuantityAvailable() : 0)
+                .sum();
+        
+        switch (timeRange != null ? timeRange.toUpperCase() : "MONTH") {
+            case "WEEK":
+                // Last 7 days
+                for (int i = 6; i >= 0; i--) {
+                    LocalDateTime date = now.minusDays(i);
+                    String label = date.format(DateTimeFormatter.ofPattern("EEE"));
+                    
+                    long productQty = calculateHistoricalQuantity(date, currentProductQty);
+                    long componentQty = calculateHistoricalQuantity(date, currentComponentQty);
+                    
+                    chartData.add(InventoryOverviewResponse.OnHandQuantityChartData.builder()
+                            .label(label)
+                            .productQuantity(productQty)
+                            .componentQuantity(componentQty)
+                            .build());
+                }
+                break;
+                
+            case "YEAR":
+                // Last 12 months
+                for (int i = 11; i >= 0; i--) {
+                    LocalDateTime monthDate = now.minusMonths(i);
+                    String label = monthDate.format(DateTimeFormatter.ofPattern("MMM yyyy"));
+                    
+                    long productQty = calculateHistoricalQuantity(monthDate, currentProductQty);
+                    long componentQty = calculateHistoricalQuantity(monthDate, currentComponentQty);
+                    
+                    chartData.add(InventoryOverviewResponse.OnHandQuantityChartData.builder()
+                            .label(label)
+                            .productQuantity(productQty)
+                            .componentQuantity(componentQty)
+                            .build());
+                }
+                break;
+                
+            case "MONTH":
+            default:
+                // Last 4 weeks
+                for (int i = 3; i >= 0; i--) {
+                    LocalDateTime weekDate = now.minusWeeks(i);
+                    String label = "Week " + (4 - i);
+                    
+                    long productQty = calculateHistoricalQuantity(weekDate, currentProductQty);
+                    long componentQty = calculateHistoricalQuantity(weekDate, currentComponentQty);
+                    
+                    chartData.add(InventoryOverviewResponse.OnHandQuantityChartData.builder()
+                            .label(label)
+                            .productQuantity(productQty)
+                            .componentQuantity(componentQty)
+                            .build());
+                }
+                break;
+        }
+        
+        return chartData;
+    }
+
+    private BigDecimal calculateProductStockValue(List<Inventory> inventories) {
+        return inventories.stream()
+                .filter(i -> i.getProductVariant() != null && i.getProductVariant().getSellingPrice() != null)
+                .map(i -> {
+                    BigDecimal price = i.getProductVariant().getSellingPrice();
+                    int qty = i.getQuantityAvailable() != null ? i.getQuantityAvailable() : 0;
+                    return price.multiply(BigDecimal.valueOf(qty));
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateComponentStockValue(List<Inventory> inventories) {
+        return inventories.stream()
+                .filter(i -> i.getPartComponentId() != null)
+                .map(i -> {
+                    PartComponent part = partComponentRepository.findById(i.getPartComponentId()).orElse(null);
+                    if (part != null && part.getSellingPrice() != null) {
+                        int qty = i.getQuantityAvailable() != null ? i.getQuantityAvailable() : 0;
+                        return part.getSellingPrice().multiply(BigDecimal.valueOf(qty));
+                    }
+                    return BigDecimal.ZERO;
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateHistoricalStockValue(LocalDateTime date, BigDecimal currentValue) {
+        // Calculate historical value based on stock transactions
+        LocalDateTime now = LocalDateTime.now();
+        List<StockTransaction> transactions = stockTransactionRepository.findByDateRange(date, now);
+        
+        // Sum up changes since that date
+        BigDecimal netChange = transactions.stream()
+                .map(t -> {
+                    // Get unit price from inventory
+                    BigDecimal unitPrice = BigDecimal.ZERO;
+                    if (t.getInventory() != null && t.getInventory().getProductVariant() != null 
+                            && t.getInventory().getProductVariant().getSellingPrice() != null) {
+                        unitPrice = t.getInventory().getProductVariant().getSellingPrice();
+                    }
+                    int qty = t.getQuantity() != null ? t.getQuantity() : 0;
+                    return unitPrice.multiply(BigDecimal.valueOf(qty));
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        // Historical value = current value - net change since that date
+        BigDecimal historicalValue = currentValue.subtract(netChange);
+        return historicalValue.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : historicalValue;
+    }
+
+    private long calculateHistoricalQuantity(LocalDateTime date, long currentQuantity) {
+        // Calculate historical quantity based on stock transactions
+        LocalDateTime now = LocalDateTime.now();
+        List<StockTransaction> transactions = stockTransactionRepository.findByDateRange(date, now);
+        
+        // Sum up quantity changes since that date
+        long netChange = transactions.stream()
+                .mapToLong(t -> t.getQuantity() != null ? t.getQuantity() : 0)
+                .sum();
+        
+        // Historical quantity = current quantity - net change
+        long historicalQty = currentQuantity - netChange;
+        return Math.max(0, historicalQty);
+    }
+
+    private List<InventoryOverviewResponse.LowStockProductItem> getLowStockProductsList() {
+        List<Inventory> lowStockInventories = inventoryRepository.findLowStockProducts();
+        
+        return lowStockInventories.stream()
+                .map(inv -> {
+                    ProductVariant pv = inv.getProductVariant();
+                    Product product = pv != null ? pv.getProduct() : null;
+                    
+                    return InventoryOverviewResponse.LowStockProductItem.builder()
+                            .productVariantId(pv != null ? pv.getId() : null)
+                            .productName(product != null ? product.getName() : "Unknown")
+                            .variantName(pv != null ? pv.getVariantName() : "")
+                            .sku(pv != null ? pv.getSku() : "")
+                            .currentStock(inv.getQuantityAvailable())
+                            .minThreshold(inv.getMinThreshold())
+                            .unitPrice(pv != null ? pv.getSellingPrice() : BigDecimal.ZERO)
+                            .imageUrl(product != null ? product.getImageUrl() : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<InventoryOverviewResponse.LowStockComponentItem> getLowStockComponentsList() {
+        List<Inventory> lowStockInventories = inventoryRepository.findLowStockComponents();
+        
+        return lowStockInventories.stream()
+                .map(inv -> {
+                    PartComponent part = partComponentRepository.findById(inv.getPartComponentId()).orElse(null);
+                    
+                    return InventoryOverviewResponse.LowStockComponentItem.builder()
+                            .partComponentId(inv.getPartComponentId())
+                            .name(part != null ? part.getName() : "Unknown")
+                            .partType(part != null ? part.getPartType() : "")
+                            .unit(part != null ? part.getUnit() : "")
+                            .currentStock(inv.getQuantityAvailable())
+                            .minStock(inv.getMinThreshold())
+                            .purchasePriceAvg(part != null ? part.getPurchasePriceAvg() : BigDecimal.ZERO)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    // ==================== EXISTING METHODS ====================
 
     @Override
     @Transactional
@@ -75,13 +362,16 @@ public class InventoryServiceImpl implements InventoryService {
         ProductVariant productVariant = productVariantRepository.findByIdAndIsDeletedFalse(productVariantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product variant not found with ID: " + productVariantId));
 
+        // Get low stock threshold from system config
+        Integer defaultThreshold = systemConfigService.getLowStockThreshold();
+        
         Inventory inventory = Inventory.builder()
                 .productVariant(productVariant)
                 .quantityPhysical(0)
                 .quantityReserved(0)
                 .quantityAvailable(0)
-                .minThreshold(productVariant.getProduct() != null ? 
-                        productVariant.getProduct().getMinStockThreshold() : 10)
+                .minThreshold(productVariant.getProduct() != null && productVariant.getProduct().getMinStockThreshold() != null ? 
+                        productVariant.getProduct().getMinStockThreshold() : defaultThreshold)
                 .createdBy(createdBy)
                 .build();
 
@@ -145,8 +435,24 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public PageResponse<InventoryResponse> getAllInventory(Pageable pageable) {
-        Page<Inventory> inventoryPage = inventoryRepository.findAllByIsDeletedFalse(pageable);
+    public PageResponse<InventoryResponse> getAllInventory(String type, Pageable pageable) {
+        Page<Inventory> inventoryPage;
+        
+        if (type != null) {
+            switch (type.toUpperCase()) {
+                case "PRODUCT":
+                    inventoryPage = inventoryRepository.findByProductVariantIsNotNullAndIsDeletedFalse(pageable);
+                    break;
+                case "COMPONENT":
+                    inventoryPage = inventoryRepository.findByPartComponentIdIsNotNullAndIsDeletedFalse(pageable);
+                    break;
+                default:
+                    inventoryPage = inventoryRepository.findAllByIsDeletedFalse(pageable);
+            }
+        } else {
+            inventoryPage = inventoryRepository.findAllByIsDeletedFalse(pageable);
+        }
+        
         return PageResponse.from(inventoryPage, this::mapToResponse);
     }
 
@@ -479,20 +785,42 @@ public class InventoryServiceImpl implements InventoryService {
 
     private InventoryResponse mapToResponse(Inventory inventory) {
         ProductVariant pv = inventory.getProductVariant();
+        UUID partComponentId = inventory.getPartComponentId();
         
+        String type;
         InventoryResponse.ProductVariantInfo pvInfo = null;
+        InventoryResponse.PartComponentInfo pcInfo = null;
+        
         if (pv != null) {
+            type = "PRODUCT";
             pvInfo = InventoryResponse.ProductVariantInfo.builder()
                     .id(pv.getId())
                     .sku(pv.getSku())
                     .variantName(pv.getVariantName())
                     .productName(pv.getProduct() != null ? pv.getProduct().getName() : null)
+                    .sellingPrice(pv.getSellingPrice())
                     .build();
+        } else if (partComponentId != null) {
+            type = "COMPONENT";
+            PartComponent pc = partComponentRepository.findById(partComponentId).orElse(null);
+            if (pc != null) {
+                pcInfo = InventoryResponse.PartComponentInfo.builder()
+                        .id(pc.getId())
+                        .name(pc.getName())
+                        .partType(pc.getPartType())
+                        .unit(pc.getUnit())
+                        .sellingPrice(pc.getSellingPrice())
+                        .build();
+            }
+        } else {
+            type = "UNKNOWN";
         }
 
         return InventoryResponse.builder()
                 .id(inventory.getId())
+                .type(type)
                 .productVariant(pvInfo)
+                .partComponent(pcInfo)
                 .quantityPhysical(inventory.getQuantityPhysical())
                 .quantityReserved(inventory.getQuantityReserved())
                 .quantityAvailable(inventory.getQuantityAvailable())

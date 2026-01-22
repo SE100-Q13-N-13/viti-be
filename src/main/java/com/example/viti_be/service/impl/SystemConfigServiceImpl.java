@@ -186,6 +186,26 @@ public class SystemConfigServiceImpl implements SystemConfigService {
         return getDecimalValue("MAX_EMPLOYEE_DISCOUNT_PERCENT", new BigDecimal("15.00"));
     }
 
+    @Override
+    public Integer getLowStockThreshold() {
+        return getIntegerValue("LOW_STOCK_THRESHOLD", 10);
+    }
+
+    @Override
+    public Boolean getAutoReorderEnabled() {
+        return getBooleanValue("AUTO_REORDER_ENABLED", true);
+    }
+
+    @Override
+    public Integer getLoyaltyPointsPerVnd() {
+        return getIntegerValue("LOYALTY_POINTS_PER_VND", 1000);
+    }
+
+    @Override
+    public BigDecimal getMinOrderValue() {
+        return getDecimalValue("MIN_ORDER_VALUE", new BigDecimal("100000"));
+    }
+
     private SystemConfigResponse mapToResponse(SystemConfig config) {
         return SystemConfigResponse.builder()
                 .id(config.getId())

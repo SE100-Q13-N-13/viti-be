@@ -32,5 +32,13 @@ public interface SystemConfigService {
     BigDecimal getVatPercent();
 
     BigDecimal getMaxEmployeeDiscountPercent();
+
+    Integer getLowStockThreshold();
+
+    Boolean getAutoReorderEnabled();
+
+    Integer getLoyaltyPointsPerVnd();
+
+    BigDecimal getMinOrderValue();
 }
 

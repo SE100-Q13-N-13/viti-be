@@ -28,4 +28,28 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
     
     @Query("SELECT st FROM StockTransaction st WHERE st.isDeleted = false ORDER BY st.createdAt DESC")
     List<StockTransaction> findAllOrderByCreatedAtDesc();
+
+    /**
+     * Get stock transactions within date range for chart data
+     */
+    @Query("SELECT st FROM StockTransaction st WHERE st.createdAt BETWEEN :startDate AND :endDate AND st.isDeleted = false ORDER BY st.createdAt ASC")
+    List<StockTransaction> findByDateRange(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Get product stock transactions within date range
+     */
+    @Query("SELECT st FROM StockTransaction st WHERE st.inventory.productVariant IS NOT NULL AND st.createdAt BETWEEN :startDate AND :endDate AND st.isDeleted = false ORDER BY st.createdAt ASC")
+    List<StockTransaction> findProductTransactionsByDateRange(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Get component stock transactions within date range
+     */
+    @Query("SELECT st FROM StockTransaction st WHERE st.partComponentId IS NOT NULL AND st.createdAt BETWEEN :startDate AND :endDate AND st.isDeleted = false ORDER BY st.createdAt ASC")
+    List<StockTransaction> findComponentTransactionsByDateRange(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
 }

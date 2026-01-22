@@ -49,6 +49,7 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private LoyaltyPointRepository loyaltyPointRepository;
     @Autowired private CustomerService customerService;
     @Autowired private NotificationService notificationService;
+    @Autowired private SystemConfigService systemConfigService;
 
     @Override
     public OrderResponse getOrderById(UUID id) {
@@ -452,6 +453,14 @@ public class OrderServiceImpl implements OrderService {
                 // Ở đây tạm lấy giá trung bình từ Variant
                 BigDecimal costPrice = variant.getPurchasePriceAvg() != null ? variant.getPurchasePriceAvg() : BigDecimal.ZERO;
 
+                // Get warranty period from system config
+                Integer warrantyMonths = systemConfigService.getWarrantyPeriodMonths();
+                LocalDateTime warrantyExpireDate = LocalDateTime.now().plusMonths(warrantyMonths);
+                
+                // Update serial warranty expire date when sold
+                serial.setWarrantyExpireDate(warrantyExpireDate);
+                productSerialRepository.save(serial);
+
                 OrderItem item = OrderItem.builder()
                         .order(order)
                         .productVariant(variant)
@@ -464,7 +473,7 @@ public class OrderServiceImpl implements OrderService {
                         // Subtotal = (Unit - Discount) * 1
                         .subtotal(unitPrice.subtract(discountPerItem))
                         // Snapshot bảo hành
-                        .warrantyPeriodSnapshot(null)
+                        .warrantyPeriodSnapshot(warrantyExpireDate)
                         .build();
 
                 finalOrderItems.add(item);
