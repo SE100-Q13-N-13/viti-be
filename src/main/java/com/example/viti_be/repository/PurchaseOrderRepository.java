@@ -27,7 +27,7 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, UU
     @Query("SELECT po FROM PurchaseOrder po WHERE po.poNumber = :poNumber AND po.isDeleted = false")
     Optional<PurchaseOrder> findByPoNumber(@Param("poNumber") String poNumber);
     
-    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(po.poNumber, 4) AS integer)), 0) FROM PurchaseOrder po WHERE po.poNumber LIKE :prefix%")
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(po.poNumber, LENGTH(:prefix) + 1) AS integer)), 0) FROM PurchaseOrder po WHERE po.poNumber LIKE CONCAT(:prefix, '%')")
     Integer findMaxPoNumberByPrefix(@Param("prefix") String prefix);
     
     boolean existsByPoNumber(String poNumber);
