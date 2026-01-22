@@ -30,6 +30,7 @@ public class InventoryResponse {
         private String variantName;
         private String productName;
         private BigDecimal sellingPrice;
+        private SupplierInfo supplier;
     }
     
     @Data
@@ -40,5 +41,17 @@ public class InventoryResponse {
         private String partType;
         private String unit;
         private BigDecimal sellingPrice;
+        private SupplierInfo supplier;
+    }
+    
+    @Data
+    @Builder
+    public static class SupplierInfo {
+        private UUID id;
+        private String name;
+        private String contactName;
+        private String phone;
+        private String email;
+        private String address;
     }
 }
