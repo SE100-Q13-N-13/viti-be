@@ -62,8 +62,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public void notifyNewOrder(UUID orderId, String orderNumber) {
-        String title = "Đơn hàng mới";
-        String content = String.format("Đơn hàng %s vừa được tạo", orderNumber);
+        String title = "New Order";
+        String content = String.format("Order %s has been created", orderNumber);
 
         createNotification(
                 NotificationType.ORDER_NEW,
