@@ -80,9 +80,23 @@ public class CategoryController {
     // --- SPECS ---
 
     @GetMapping("/{id}/specs")
-    public ResponseEntity<ApiResponse<List<CategorySpecResponse>>> getSpecs(@PathVariable UUID id) {
-        List<CategorySpec> specs = categoryService.getSpecsByCategory(id);
-        return ResponseEntity.ok(ApiResponse.success(categoryMapper.toSpecResponseList(specs), "Success"));
+    public ResponseEntity<ApiResponse<List<CategorySpecResponse>>> getSpecs(
+            @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "true") Boolean includeInherited) {
+        
+        if (includeInherited) {
+            List<CategorySpec> specs = categoryService.getAllSpecsWithInheritance(id);
+            return ResponseEntity.ok(ApiResponse.success(
+                categoryMapper.toSpecResponseListWithInheritance(specs, id), 
+                "Success"
+            ));
+        } else {
+            List<CategorySpec> specs = categoryService.getSpecsByCategory(id);
+            return ResponseEntity.ok(ApiResponse.success(
+                categoryMapper.toSpecResponseList(specs), 
+                "Success"
+            ));
+        }
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -101,8 +115,10 @@ public class CategoryController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/specs/{specId}")
-    public ResponseEntity<ApiResponse<Void>> deleteSpec(@PathVariable UUID specId) {
-        categoryService.deleteSpec(specId);
+    public ResponseEntity<ApiResponse<Void>> deleteSpec(
+            @PathVariable UUID specId,
+            @RequestParam UUID categoryId) {
+        categoryService.deleteSpec(specId, categoryId);
         return ResponseEntity.ok(ApiResponse.success(null, "Deleted spec"));
     }
 }

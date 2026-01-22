@@ -20,6 +20,7 @@ public interface CategoryService {
     // Spec CRUD
     CategorySpec addSpecToCategory(CategorySpecRequest request);
     CategorySpec updateSpec(UUID specId, CategorySpecRequest request);
-    void deleteSpec(UUID specId);
+    void deleteSpec(UUID specId, UUID categoryId);
     List<CategorySpec> getSpecsByCategory(UUID categoryId);
+    List<CategorySpec> getAllSpecsWithInheritance(UUID categoryId);
 }
