@@ -1,5 +1,6 @@
 package com.example.viti_be.service;
 
+import com.example.viti_be.dto.response.InventoryOverviewResponse;
 import com.example.viti_be.dto.response.InventoryResponse;
 import com.example.viti_be.dto.response.ProductSerialResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
@@ -13,6 +14,14 @@ import java.util.List;
 import java.util.UUID;
 
 public interface InventoryService {
+
+    /**
+     * Get inventory overview with statistics, charts, and low stock lists
+     * @param stockValueTimeRange Time range for stock value chart: WEEK, MONTH, YEAR
+     * @param onHandQuantityTimeRange Time range for on-hand quantity chart: WEEK, MONTH, YEAR
+     * @return InventoryOverviewResponse with all overview data
+     */
+    InventoryOverviewResponse getInventoryOverview(String stockValueTimeRange, String onHandQuantityTimeRange);
     
     /**
      * Get or create inventory for a product variant
@@ -53,9 +62,11 @@ public interface InventoryService {
     
     /**
      * Get all inventory items
+     * @param type Filter by type: PRODUCT, COMPONENT, or null for all
+     * @param pageable Pagination
      * @return List of InventoryResponse
      */
-    PageResponse<InventoryResponse> getAllInventory(Pageable pageable);
+    PageResponse<InventoryResponse> getAllInventory(String type, Pageable pageable);
     
     /**
      * Get low stock items (below threshold)

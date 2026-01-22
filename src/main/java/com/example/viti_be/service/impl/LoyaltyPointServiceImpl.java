@@ -38,6 +38,7 @@ public class LoyaltyPointServiceImpl implements LoyaltyPointService {
     private final SystemConfigRepository systemConfigRepository;
     private final AuditLogService auditLogService;
     private final LoyaltyPointMapper mapper;
+    private final com.example.viti_be.service.SystemConfigService systemConfigService;
 
     // ========== CONFIG KEYS ==========
     private static final String EARN_ENABLED = "loyalty.earn.enabled";
@@ -126,7 +127,8 @@ public class LoyaltyPointServiceImpl implements LoyaltyPointService {
             baseAmount = baseAmount.add(pointsValue);
         }
 
-        Integer earnRate = getConfigInt(EARN_RATE, 100000); // Default: 100,000 VND = 1 point
+        // Get loyalty points per VND from system config
+        Integer earnRate = systemConfigService.getLoyaltyPointsPerVnd();
         Integer pointsEarned = baseAmount.divide(new BigDecimal(earnRate), 0, RoundingMode.DOWN).intValue();
 
         if (pointsEarned <= 0) {
