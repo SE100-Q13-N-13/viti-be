@@ -11,4 +11,10 @@ public interface CategorySpecRepository extends JpaRepository<CategorySpec, UUID
     List<CategorySpec> findByCategoryId(UUID categoryId);
     List<CategorySpec> findByCategoryIdAndIsDeletedFalse(UUID categoryId);
     Optional<CategorySpec> findByIdAndIsDeletedFalse(UUID id);
+
+    // Lấy tất cả variant specs của 1 category
+    List<CategorySpec> findByCategoryIdAndIsVariantSpecTrueAndIsDeletedFalse(UUID categoryId);
+
+    // Lấy tất cả variant specs trong toàn hệ thống
+    List<CategorySpec> findByIsVariantSpecTrueAndIsDeletedFalse();
 }

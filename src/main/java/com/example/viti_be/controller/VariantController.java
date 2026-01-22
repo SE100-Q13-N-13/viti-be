@@ -2,6 +2,7 @@ package com.example.viti_be.controller;
 
 import com.example.viti_be.dto.response.ApiResponse;
 import com.example.viti_be.dto.response.ProductVariantResponse;
+import com.example.viti_be.dto.response.VariantFilterOptionsResponse;
 import com.example.viti_be.dto.response.pagnitation.PageResponse;
 import com.example.viti_be.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -53,5 +54,23 @@ public class VariantController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(variants, "Fetch variants success"));
+    }
+
+    /**
+     * GET /api/variants/filter-options - Lấy tất cả filter options (Public)
+     * Tổng hợp tất cả giá trị unique của variant specs để tạo bộ filter động
+     *
+     * @param categoryId Optional - Chỉ lấy filter options của category này
+     * @return Map<specKey, List<uniqueValues>>
+     */
+    @GetMapping("/filter-options")
+    @Operation(summary = "Lấy tất cả filter options cho variants (Public)",
+            description = "Tổng hợp tất cả giá trị unique của variant specs. VD: color: [Đỏ, Xanh], ram: [8GB, 16GB]")
+    public ResponseEntity<ApiResponse<VariantFilterOptionsResponse>> getFilterOptions(
+            @Parameter(description = "Chỉ lấy options của category này (optional)")
+            @RequestParam(required = false) UUID categoryId) {
+
+        VariantFilterOptionsResponse options = productService.getVariantFilterOptions(categoryId);
+        return ResponseEntity.ok(ApiResponse.success(options, "Fetch filter options success"));
     }
 }

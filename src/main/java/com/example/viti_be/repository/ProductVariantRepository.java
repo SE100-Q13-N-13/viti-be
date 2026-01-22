@@ -26,4 +26,10 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     // Lấy variants theo product (có pagination)
     Page<ProductVariant> findByProductIdAndIsDeletedFalse(UUID productId, Pageable pageable);
+
+    @Query("SELECT v FROM ProductVariant v WHERE v.product.category.id = :categoryId AND v.isDeleted = false")
+    List<ProductVariant> findAllByCategoryId(@Param("categoryId") UUID categoryId);
+
+    // Lấy tất cả variants (không phân trang) - để aggregate filter options toàn hệ thống
+    List<ProductVariant> findAllByIsDeletedFalse();
 }
