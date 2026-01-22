@@ -108,9 +108,10 @@ public class ProductServiceImpl implements ProductService {
             BigDecimal maxPrice,
             String variantName,
             String variantSpec,
+            String search,
             Pageable pageable
     ) {
-        Page<Product> productPage = productRepository.findAllWithFilters(categoryId, supplierId, minPrice, maxPrice,  variantName, variantSpec, pageable);
+        Page<Product> productPage = productRepository.findAllWithFilters(categoryId, supplierId, minPrice, maxPrice,  variantName, variantSpec, search, pageable);
         return PageResponse.from(productPage, productMapper::toProductResponse);
     }
 

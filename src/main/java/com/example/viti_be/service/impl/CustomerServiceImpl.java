@@ -151,7 +151,7 @@ public class CustomerServiceImpl implements CustomerService {
         address.setIsPrimary(request.getIsPrimary());
         address.setPostalCode(request.getPostalCode());
         address.setContactName(request.getContactName());
-        address.setPhoneNumber(request.getPhoneNumber());
+        address.setContactPhone(request.getContactPhone());
 
         // If this is set as primary, remove primary from other addresses
         if (Boolean.TRUE.equals(request.getIsPrimary())) {

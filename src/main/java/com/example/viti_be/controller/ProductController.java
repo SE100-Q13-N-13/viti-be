@@ -46,9 +46,10 @@ public class ProductController {
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) String variantName,
             @RequestParam(required = false) String variantSpec,
+            @RequestParam(required = false) String search,
             @ParameterObject Pageable pageable
             ) {
-        PageResponse<ProductResponse> products = productService.getAllProducts(categoryId, supplierId, minPrice, maxPrice, variantName, variantSpec, pageable);
+        PageResponse<ProductResponse> products = productService.getAllProducts(categoryId, supplierId, minPrice, maxPrice, variantName, variantSpec, search, pageable);
         return ResponseEntity.ok(ApiResponse.success(products,
                 "Fetch products success"
         ));
