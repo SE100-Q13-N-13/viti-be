@@ -15,6 +15,9 @@ public interface CustomerService {
     CustomerResponse createCustomer(CustomerRequest request);
     CustomerResponse updateCustomer(UUID id, CustomerRequest request);
     CustomerResponse getCustomerById(UUID id);
+
+    CustomerResponse getCustomerByUserId(UUID userId);
+
     PageResponse<CustomerResponse> getAllCustomers(Pageable pageable);
     void deleteCustomer(UUID id);
     CustomerResponse addAddress(UUID customerId, AddressRequest request);

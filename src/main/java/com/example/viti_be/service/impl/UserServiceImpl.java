@@ -70,6 +70,7 @@ public class UserServiceImpl implements UserService {
 
         if (customerOpt.isPresent()) {
             Customer customer = customerOpt.get();
+            response.setCustomerId(customer.getId());
 
             if (customer.getTier() != null) {
                 response.setTier(UserResponse.UserTierInfo.builder()

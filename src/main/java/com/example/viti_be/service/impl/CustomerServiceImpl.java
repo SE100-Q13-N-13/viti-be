@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -105,6 +104,13 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse getCustomerById(UUID id) {
         Customer customer = customerRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+        return mapToResponse(customer);
+    }
+
+    @Override
+    public CustomerResponse getCustomerByUserId(UUID userId) {
+        Customer customer = customerRepository.findByUserIdAndIsDeletedFalse(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found for user: " + userId));
         return mapToResponse(customer);
     }
 
