@@ -51,12 +51,16 @@ public class UserController {
     )
     public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestPart(value = "data", required = false) UserRequest request,
+            @RequestParam(required = false) String fullName,
+            @RequestParam(required = false) String phone,
             @RequestPart(value = "avatar", required = false) MultipartFile avatar) {
-
         UserDetailsImpl userImpl = (UserDetailsImpl) userDetails;
-        UserResponse response = userService.updateProfile(userImpl.getId(), request, avatar);
 
+        UserRequest requestDTO = new UserRequest();
+        requestDTO.setFullName(fullName);
+        requestDTO.setPhone(phone);
+
+        UserResponse response = userService.updateProfile(userImpl.getId(), requestDTO, avatar);
         return ResponseEntity.ok(ApiResponse.success(response, "Profile updated successfully"));
     }
 
