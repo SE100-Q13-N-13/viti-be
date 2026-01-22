@@ -179,6 +179,15 @@ public class PromotionController {
         return ResponseEntity.ok(ApiResponse.success(promotions, "Get public promotions successfully"));
     }
 
+    @PostMapping("/promotions/applicable")
+    @Operation(summary = "Get promotions applicable to current cart")
+    public ResponseEntity<ApiResponse<List<PromotionResponse>>> getApplicablePromotions(
+            @RequestBody @Valid ApplyPromotionCodeRequest cartInfo) {
+
+        List<PromotionResponse> response = promotionService.getApplicablePromotionsForCart(cartInfo);
+        return ResponseEntity.ok(ApiResponse.success(response, "Success"));
+    }
+
     @GetMapping("/promotions/{id}")
     @Operation(summary = "Get promotion detail (Public)")
     public ResponseEntity<Map<String, Object>> getPromotionDetail(@PathVariable UUID id) {

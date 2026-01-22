@@ -30,8 +30,15 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
      */
     @Query("SELECT p FROM Promotion p WHERE p.status = 'ACTIVE' " +
             "AND p.startDate <= :now AND p.endDate > :now " +
+            "AND (p.requiresCode = false OR p.requiresCode IS NULL)" +
             "AND p.isDeleted = false")
     Page<Promotion> findActivePromotions(@Param("now") LocalDateTime now, Pageable pageable);
+
+    @Query("SELECT p FROM Promotion p WHERE p.status = 'ACTIVE' " +
+            "AND p.startDate <= :now AND p.endDate > :now " +
+            "AND (p.requiresCode = false OR p.requiresCode IS NULL)" +
+            "AND p.isDeleted = false")
+    List<Promotion> findActivePublicPromotions(@Param("now") LocalDateTime now);
 
     /**
      * Tìm promotions cần auto-expire (end_date qua + status vẫn ACTIVE)

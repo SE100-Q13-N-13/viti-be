@@ -141,6 +141,157 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<PromotionResponse> getApplicablePromotionsForCart(ApplyPromotionCodeRequest request) {
+        // 1. Chuẩn bị dữ liệu
+        LocalDateTime now = LocalDateTime.now();
+        List<Promotion> publicPromotions = promotionRepository.findActivePublicPromotions(now);
+        List<Promotion> applicablePromotions = new ArrayList<>();
+
+        // Lấy thông tin Customer (nếu có)
+        Customer customer = null;
+        if (request.getCustomerId() != null) {
+            customer = customerRepository.findById(request.getCustomerId()).orElse(null);
+        }
+
+        // Tính tổng tiền giỏ hàng (để check Min Order Value)
+        BigDecimal cartSubtotal = calculateSubtotal(request.getItems());
+
+        // Cache Product -> Category để tránh query DB trong vòng lặp
+        // Map<ProductId, CategoryId>
+        Map<UUID, UUID> productCategoryMap = preloadProductCategories(request.getItems());
+
+        // 2. Duyệt qua từng promotion để lọc
+        for (Promotion p : publicPromotions) {
+            // Check 1: Min Order Value
+            if (p.getMinOrderValue() != null && cartSubtotal.compareTo(p.getMinOrderValue()) < 0) {
+                continue;
+            }
+
+            // Check 2: Customer Tier
+            if (!isCustomerTierEligible(p, customer)) {
+                continue;
+            }
+
+            // Check 3: Global Usage Limit
+            if (!p.hasQuota()) {
+                continue;
+            }
+
+            // Check 4: Usage Per Customer Limit
+            if (customer != null && p.getUsagePerCustomer() != null) {
+                long usage = usageHistoryRepository.countByPromotionIdAndCustomerId(p.getId(), customer.getId());
+                if (usage >= p.getUsagePerCustomer()) {
+                    continue;
+                }
+            }
+
+            // Check 5: Scope (Product vs Order)
+            boolean isScopeValid = false;
+            if (p.getScope() == PromotionScope.ORDER) {
+                isScopeValid = true; // Đã pass MinOrderValue ở trên là đủ
+            } else if (p.getScope() == PromotionScope.PRODUCT) {
+                // Kiểm tra xem trong giỏ có sản phẩm nào thuộc Promotion này không
+                // Chỉ cần có ít nhất 1 sản phẩm khớp là Promotion này được coi là "Applicable"
+                isScopeValid = request.getItems().stream().anyMatch(item ->
+                        isPromotionApplicableToItem(p, item.getProductId(), productCategoryMap)
+                );
+            }
+
+            if (isScopeValid) {
+                applicablePromotions.add(p);
+            }
+        }
+
+        return applicablePromotions.stream()
+                .map(mapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Helper: Tính tổng tiền giỏ hàng từ request items
+     */
+    private BigDecimal calculateSubtotal(List<CartItemRequest> items) {
+        if (items == null || items.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return items.stream()
+                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Helper: Kiểm tra hạng thành viên
+     */
+    private boolean isCustomerTierEligible(Promotion promotion, Customer customer) {
+        // Nếu promotion không yêu cầu tier -> OK
+        if (promotion.getApplicableCustomerTiers() == null || promotion.getApplicableCustomerTiers().isEmpty()) {
+            return true;
+        }
+
+        // Nếu promotion yêu cầu tier mà khách là Guest (customer == null) -> Fail
+        if (customer == null || customer.getTier() == null) {
+            return false;
+        }
+
+        try {
+            // Parse JSON list tiers từ promotion entity
+            List<String> allowedTiers = objectMapper.readValue(
+                    promotion.getApplicableCustomerTiers(),
+                    new TypeReference<List<String>>() {}
+            );
+
+            // Check xem tier của khách có nằm trong list cho phép không
+            return allowedTiers.contains(customer.getTier().getName());
+
+        } catch (Exception e) {
+            log.error("Error parsing customer tiers for promotion {}", promotion.getCode(), e);
+            return false; // Fail safe
+        }
+    }
+
+    /**
+     * Helper: Preload Category ID cho các products trong giỏ để tối ưu hiệu năng
+     */
+    private Map<UUID, UUID> preloadProductCategories(List<CartItemRequest> items) {
+        if (items == null || items.isEmpty()) return Collections.emptyMap();
+
+        Set<UUID> productIds = items.stream()
+                .map(CartItemRequest::getProductId)
+                .collect(Collectors.toSet());
+
+        List<Product> products = productRepository.findAllById(productIds);
+
+        return products.stream()
+                .collect(Collectors.toMap(
+                        Product::getId,
+                        p -> p.getCategory() != null ? p.getCategory().getId() : null, // Handle null category
+                        (existing, replacement) -> existing // Merge function (không cần thiết vì ID unique)
+                ));
+    }
+
+    /**
+     * Helper: Kiểm tra Promotion có áp dụng cho 1 Item cụ thể không
+     */
+    private boolean isPromotionApplicableToItem(Promotion p, UUID productId, Map<UUID, UUID> productCategoryMap) {
+        // Check 1: Direct Product Match
+        boolean productMatch = p.getPromotionProducts().stream()
+                .anyMatch(pp -> pp.getProduct().getId().equals(productId));
+
+        if (productMatch) return true;
+
+        // Check 2: Category Match
+        UUID categoryId = productCategoryMap.get(productId);
+        if (categoryId != null) {
+            boolean categoryMatch = p.getPromotionCategories().stream()
+                    .anyMatch(pc -> pc.getCategory().getId().equals(categoryId));
+            if (categoryMatch) return true;
+        }
+
+        return false;
+    }
+
+    @Override
     @Transactional
     public PromotionResponse togglePromotionStatus(UUID id, UUID adminId) {
         Promotion promotion = promotionRepository.findById(id)
@@ -257,12 +408,19 @@ public class PromotionServiceImpl implements PromotionService {
     private CartDiscountCalculationResponse calculateCartDiscountWithCodes(
             ApplyPromotionCodeRequest request, List<String> manualCodes) {
 
+        // [LOG] Bắt đầu tính toán
+        log.info("=== START CALCULATE CART DISCOUNT ===");
+        log.info("Customer ID: {}", request.getCustomerId());
+        log.info("Manual Codes Input: {}", manualCodes); // Quan trọng: Check xem code có thực sự truyền vào đây không
+
         List<String> warnings = new ArrayList<>();
 
         // 1. Tính subtotal
         BigDecimal subtotal = request.getItems().stream()
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        log.info("1. Calculated Subtotal: {}", subtotal);
 
         // 2. Tier discount (nếu có customer)
         BigDecimal tierDiscount = BigDecimal.ZERO;
@@ -273,18 +431,29 @@ public class PromotionServiceImpl implements PromotionService {
                 if (rate != null && rate.compareTo(BigDecimal.ZERO) > 0) {
                     tierDiscount = subtotal.multiply(rate)
                             .divide(new BigDecimal(100), 2, RoundingMode.HALF_DOWN);
+                    log.info("2. Tier Discount Applied: {} (Tier: {}, Rate: {}%)",
+                            tierDiscount, customer.getTier().getName(), rate);
+                } else {
+                    log.info("2. Customer found but Tier Rate is 0 or null");
                 }
+            } else {
+                log.info("2. Customer not found or has no Tier assigned");
             }
+        } else {
+            log.info("2. Guest Customer - No Tier Discount");
         }
 
         // 3. Apply PRODUCT promotions
         List<AppliedPromotionResponse> productPromotions = new ArrayList<>();
         BigDecimal productPromotionDiscount = BigDecimal.ZERO;
 
+        log.info("3. Processing Product Promotions for {} items...", request.getItems().size());
+
         for (CartItemRequest item : request.getItems()) {
             ProductVariant variant = productVariantRepository.findById(item.getProductVariantId()).orElse(null);
             if (variant == null) {
                 warnings.add("Product variant not found: " + item.getProductVariantId());
+                log.warn("Item skipped: Variant {} not found", item.getProductVariantId());
                 continue;
             }
 
@@ -296,9 +465,16 @@ public class PromotionServiceImpl implements PromotionService {
             List<Promotion> applicablePromotions = findApplicableProductPromotions(
                     productId, categoryId, request.getCustomerId(), manualCodes);
 
+            log.info("   > Item {} (Product {}): Found {} applicable candidates",
+                    variant.getId(), productId, applicablePromotions.size());
+
             // Resolve conflicts và apply
             List<Promotion> selectedPromotions = resolveConflictsAndSelectPromotions(
                     applicablePromotions, manualCodes);
+
+            if (selectedPromotions.isEmpty() && !applicablePromotions.isEmpty()) {
+                log.warn("   > All candidates for Item {} were filtered out by Conflict Resolver!", variant.getId());
+            }
 
             // Tính discount cho item này
             BigDecimal itemBaseAmount = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
@@ -306,6 +482,9 @@ public class PromotionServiceImpl implements PromotionService {
             for (Promotion promo : selectedPromotions) {
                 BigDecimal itemDiscount = promo.calculateDiscount(itemBaseAmount);
                 productPromotionDiscount = productPromotionDiscount.add(itemDiscount);
+
+                log.info("   > Applied Promo '{}' to Item {}. Discount: {}",
+                        promo.getCode(), variant.getId(), itemDiscount);
 
                 // Add to response (chỉ add 1 lần cho mỗi promotion)
                 boolean alreadyAdded = productPromotions.stream()
@@ -315,15 +494,20 @@ public class PromotionServiceImpl implements PromotionService {
                 }
             }
         }
+        log.info("   > Total Product Discount: {}", productPromotionDiscount);
 
         // 4. Apply ORDER promotion (chỉ 1 cái tốt nhất)
         AppliedPromotionResponse orderPromotion = null;
         BigDecimal orderPromotionDiscount = BigDecimal.ZERO;
 
         BigDecimal baseForOrderPromo = subtotal.subtract(tierDiscount).subtract(productPromotionDiscount);
+        log.info("4. Processing Order Promotions. Base Amount: {}", baseForOrderPromo);
+
         if (baseForOrderPromo.compareTo(BigDecimal.ZERO) > 0) {
             List<Promotion> orderPromotions = findApplicableOrderPromotions(
                     baseForOrderPromo, request.getCustomerId(), manualCodes);
+
+            log.info("   > Found {} applicable Order Promos candidates", orderPromotions.size());
 
             if (!orderPromotions.isEmpty()) {
                 // Chọn promotion có discount lớn nhất
@@ -334,8 +518,14 @@ public class PromotionServiceImpl implements PromotionService {
                 if (bestOrderPromo != null) {
                     orderPromotionDiscount = bestOrderPromo.calculateDiscount(baseForOrderPromo);
                     orderPromotion = mapper.toAppliedResponse(bestOrderPromo, orderPromotionDiscount);
+                    log.info("   > Selected Best Promo: '{}' (Discount: {})",
+                            bestOrderPromo.getCode(), orderPromotionDiscount);
                 }
+            } else {
+                log.info("   > No applicable Order Promos found (Check MinOrderValue, Dates, Usage Limit)");
             }
+        } else {
+            log.info("   > Base Amount <= 0, skipping Order Promotions");
         }
 
         // 5. Total discount
@@ -349,6 +539,9 @@ public class PromotionServiceImpl implements PromotionService {
             finalAmount = BigDecimal.ZERO;
         }
 
+        log.info("=== END CALCULATION ===");
+        log.info("Subtotal: {}, Total Discount: {}, Final: {}", subtotal, totalDiscount, finalAmount);
+
         return CartDiscountCalculationResponse.builder()
                 .subtotal(subtotal)
                 .tierDiscount(tierDiscount)
@@ -361,7 +554,6 @@ public class PromotionServiceImpl implements PromotionService {
                 .warnings(warnings)
                 .build();
     }
-
     // ========================================
     // ORDER INTEGRATION
     // ========================================
