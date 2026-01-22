@@ -17,7 +17,7 @@ import java.util.UUID;
 public interface ProductService {
     Product createProduct(ProductRequest request, MultipartFile image);
     ProductVariant createVariant(VariantRequest request);
-    PageResponse<ProductResponse> getAllProducts(UUID categoryId, UUID supplierId, BigDecimal minPrice, BigDecimal maxPrice, String variantName, String variantSpec, Pageable pageable);
+    PageResponse<ProductResponse> getAllProducts(UUID categoryId, UUID supplierId, BigDecimal minPrice, BigDecimal maxPrice, String variantName, String variantSpec, String search, Pageable pageable);
     Product getProductById(UUID id);
     Product updateProduct(UUID id, ProductRequest request, MultipartFile image);
     void deleteProduct(UUID id);

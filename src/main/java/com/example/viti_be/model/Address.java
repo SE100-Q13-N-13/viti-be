@@ -38,6 +38,6 @@ public class Address extends BaseEntity {
     @Column(name = "contact_name")
     private String contactName;
 
-    @Column(name = "phone_number")
-    private String phoneNumber;
+    @Column(name = "contact_phone")
+    private String contactPhone;
 }

@@ -67,6 +67,6 @@ public class CustomerResponse {
         private Boolean isPrimary;
         private String postalCode;
         private String contactName;
-        private String phoneNumber;
+        private String contactPhone;
     }
 }

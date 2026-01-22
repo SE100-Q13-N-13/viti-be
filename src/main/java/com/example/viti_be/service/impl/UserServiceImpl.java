@@ -115,7 +115,7 @@ public class UserServiceImpl implements UserService {
         address.setIsPrimary(request.getIsPrimary());
         address.setPostalCode(request.getPostalCode());
         address.setContactName(request.getContactName());
-        address.setPhoneNumber(request.getPhoneNumber());
+        address.setContactPhone(request.getContactPhone());
 
         Address savedAddress = addressRepository.save(address);
 
@@ -233,7 +233,7 @@ public class UserServiceImpl implements UserService {
                 .isPrimary(address.getIsPrimary())
                 .postalCode(address.getPostalCode())
                 .contactName(address.getContactName())
-                .phoneNumber(address.getPhoneNumber())
+                .contactPhone(address.getContactPhone())
                 .build();
     }
 }

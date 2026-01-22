@@ -28,6 +28,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     WHERE p.isDeleted = false
       AND p.status = 'ACTIVE'
       
+      AND (:#{#search == null || #search.isBlank()} = true
+                             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')))
+                             
       AND (:#{#categoryId == null} = true
            OR p.category.id = :categoryId)
 
@@ -53,6 +56,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("maxPrice") BigDecimal maxPrice,
             @Param("variantName") String variantName,
             @Param("variantSpec") String variantSpec,
+            @Param("search") String search,
             Pageable pageable
     );
 }

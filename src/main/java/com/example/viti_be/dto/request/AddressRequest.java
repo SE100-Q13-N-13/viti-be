@@ -24,5 +24,5 @@ public class AddressRequest {
 
     private String contactName;
 
-    private String phoneNumber;
+    private String contactPhone;
 }
