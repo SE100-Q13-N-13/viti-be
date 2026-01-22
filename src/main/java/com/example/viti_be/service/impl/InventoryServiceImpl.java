@@ -793,23 +793,51 @@ public class InventoryServiceImpl implements InventoryService {
         
         if (pv != null) {
             type = "PRODUCT";
+            InventoryResponse.SupplierInfo supplierInfo = null;
+            if (pv.getProduct() != null && pv.getProduct().getSupplier() != null) {
+                Supplier supplier = pv.getProduct().getSupplier();
+                supplierInfo = InventoryResponse.SupplierInfo.builder()
+                        .id(supplier.getId())
+                        .name(supplier.getName())
+                        .contactName(supplier.getContact_name())
+                        .phone(supplier.getPhone())
+                        .email(supplier.getEmail())
+                        .address(supplier.getAddress())
+                        .build();
+            }
+            
             pvInfo = InventoryResponse.ProductVariantInfo.builder()
                     .id(pv.getId())
                     .sku(pv.getSku())
                     .variantName(pv.getVariantName())
                     .productName(pv.getProduct() != null ? pv.getProduct().getName() : null)
                     .sellingPrice(pv.getSellingPrice())
+                    .supplier(supplierInfo)
                     .build();
         } else if (partComponentId != null) {
             type = "COMPONENT";
             PartComponent pc = partComponentRepository.findById(partComponentId).orElse(null);
             if (pc != null) {
+                InventoryResponse.SupplierInfo supplierInfo = null;
+                if (pc.getSupplier() != null) {
+                    Supplier supplier = pc.getSupplier();
+                    supplierInfo = InventoryResponse.SupplierInfo.builder()
+                            .id(supplier.getId())
+                            .name(supplier.getName())
+                            .contactName(supplier.getContact_name())
+                            .phone(supplier.getPhone())
+                            .email(supplier.getEmail())
+                            .address(supplier.getAddress())
+                            .build();
+                }
+                
                 pcInfo = InventoryResponse.PartComponentInfo.builder()
                         .id(pc.getId())
                         .name(pc.getName())
                         .partType(pc.getPartType())
                         .unit(pc.getUnit())
                         .sellingPrice(pc.getSellingPrice())
+                        .supplier(supplierInfo)
                         .build();
             }
         } else {
