@@ -118,6 +118,20 @@ public class UserServiceImpl implements UserService {
         }
 
         User updatedUser = userRepository.save(user);
+        customerRepository.findByUser(user).ifPresent(customer -> {
+            boolean custChanged = false;
+            if (request.getFullName() != null) {
+                customer.setFullName(request.getFullName());
+                custChanged = true;
+            }
+            if (request.getPhone() != null) {
+                customer.setPhone(request.getPhone());
+                custChanged = true;
+            }
+            if (custChanged) {
+                customerRepository.save(customer);
+            }
+        });
         return userMapper.toUserResponse(user);
     }
 
